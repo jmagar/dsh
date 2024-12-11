@@ -33,5 +33,6 @@
       "@dsh/shared/*": ["./shared/src/*"]
     }
   },
-  "exclude": ["**/node_modules", "**/dist"]
+  "include": ["**/src/**/*", "**/*.config.js", "**/.eslintrc.js", ".eslintrc.js"],
+  "exclude": ["**/node_modules", "**/dist", "**/build"]
 }
