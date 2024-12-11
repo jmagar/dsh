@@ -1,0 +1,203 @@
+name: Dependencies
+
+on:
+  schedule:
+    - cron: '0 0 * * 1' # Run every Monday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-deps:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        workspace: ['.', 'frontend', 'backend', 'shared']
+        package-type: ['dependencies', 'devDependencies']
+        update-type: ['major', 'minor', 'patch']
+      fail-fast: false
+      max-parallel: 4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Verify package-lock.json
+        run: |
+          if [ -f "${{ matrix.workspace }}/package-lock.json" ]; then
+            cd ${{ matrix.workspace }}
+            npm install --package-lock-only
+            if ! git diff --exit-code package-lock.json; then
+              echo "package-lock.json is out of sync"
+              exit 1
+            fi
+          fi
+
+      - name: Get package groups
+        id: pkg-groups
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+            echo "react=$(npm ls --json | jq -r '.dependencies | keys[] | select(contains("react"))')" >> $GITHUB_OUTPUT
+            echo "typescript=$(npm ls --json | jq -r '.dependencies | keys[] | select(contains("typescript"))')" >> $GITHUB_OUTPUT
+            echo "eslint=$(npm ls --json | jq -r '.dependencies | keys[] | select(contains("eslint"))')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update dependencies
+        id: update
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+
+            # Install npm-check-updates
+            npm install -g npm-check-updates
+
+            # Update based on matrix type
+            if [ "${{ matrix.update-type }}" = "major" ]; then
+              UPDATE_FLAGS="--target latest"
+            elif [ "${{ matrix.update-type }}" = "minor" ]; then
+              UPDATE_FLAGS="--target minor"
+            else
+              UPDATE_FLAGS="--target patch"
+            fi
+
+            # Try update with retries
+            max_attempts=3
+            attempt=1
+            until ncu -u $UPDATE_FLAGS --packageFile package.json || [ $attempt -eq $max_attempts ]; do
+              echo "Attempt $attempt failed. Retrying..."
+              attempt=$((attempt + 1))
+              sleep 5
+            done
+
+            if [ $attempt -eq $max_attempts ]; then
+              echo "Failed to update dependencies after $max_attempts attempts"
+              exit 1
+            fi
+          fi
+
+      - name: Install dependencies
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+            # Try install with retries
+            max_attempts=3
+            attempt=1
+            until npm install || [ $attempt -eq $max_attempts ]; do
+              echo "Attempt $attempt failed. Retrying..."
+              attempt=$((attempt + 1))
+              sleep 5
+            done
+
+            if [ $attempt -eq $max_attempts ]; then
+              echo "Failed to install dependencies after $max_attempts attempts"
+              exit 1
+            fi
+          fi
+
+      - name: Run type check
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+            if [ -f "tsconfig.json" ]; then
+              npm run type-check || exit 1
+            fi
+          fi
+
+      - name: Run tests
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+            if [ -f "jest.config.js" ] || [ -f "jest.config.ts" ]; then
+              npm test || exit 1
+            fi
+          fi
+
+      - name: Analyze impact
+        id: impact
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+
+            echo "IMPACT<<EOF" >> $GITHUB_OUTPUT
+            echo "## Impact Analysis" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+
+            # Bundle size impact
+            if [ -f "package.json" ] && grep -q "build" "package.json"; then
+              echo "### Bundle Size Impact" >> $GITHUB_OUTPUT
+              npm run build
+              npx bundlesize >> $GITHUB_OUTPUT
+            fi
+
+            # Performance impact
+            if [ "${{ matrix.workspace }}" = "backend" ]; then
+              echo "### Performance Impact" >> $GITHUB_OUTPUT
+              npm run benchmark >> $GITHUB_OUTPUT
+            fi
+
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [ -f "${{ matrix.workspace }}/package.json" ]; then
+            cd ${{ matrix.workspace }}
+
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "## Dependency Updates for ${{ matrix.workspace }} (${{ matrix.update-type }})" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+
+            echo "### React Packages" >> $GITHUB_OUTPUT
+            ncu --packageFile package.json | grep "react" >> $GITHUB_OUTPUT || true
+
+            echo "" >> $GITHUB_OUTPUT
+            echo "### TypeScript Packages" >> $GITHUB_OUTPUT
+            ncu --packageFile package.json | grep "typescript\|ts-" >> $GITHUB_OUTPUT || true
+
+            echo "" >> $GITHUB_OUTPUT
+            echo "### ESLint Packages" >> $GITHUB_OUTPUT
+            ncu --packageFile package.json | grep "eslint" >> $GITHUB_OUTPUT || true
+
+            echo "" >> $GITHUB_OUTPUT
+            echo "### Other Packages" >> $GITHUB_OUTPUT
+            ncu --packageFile package.json | grep -v "react\|typescript\|ts-\|eslint" >> $GITHUB_OUTPUT || true
+
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: success() && steps.update.outcome == 'success'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps-${{ matrix.workspace }}-${{ matrix.update-type }}): update ${{ matrix.package-type }}"
+          title: "chore(deps-${{ matrix.workspace }}-${{ matrix.update-type }}): update ${{ matrix.package-type }}"
+          body: |
+            Automated dependency updates for ${{ matrix.workspace }}.
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ${{ steps.impact.outputs.IMPACT }}
+
+            ## Checks
+            - ✅ package-lock.json verification passed
+            - ✅ Type checking passed
+            - ✅ Tests passed
+
+            Please review the changes carefully before merging.
+          branch: "deps/${{ matrix.workspace }}-${{ matrix.package-type }}-${{ matrix.update-type }}"
+          base: main
+          labels: |
+            dependencies
+            ${{ matrix.workspace }}
+            ${{ matrix.update-type }}
+            automated
+          assignees: ${{ github.repository_owner }}
+          reviewers: ${{ github.repository_owner }}
+          delete-branch: true

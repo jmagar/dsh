@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@/*": ["src/*"],
+      "@dsh/shared/*": ["../shared/src/*"]
+    },
+    "types": ["node", "jest"],
+    "typeRoots": ["./node_modules/@types", "../node_modules/@types"]
+  },
+  "include": ["src/**/*", "src/**/*.json", "tests/**/*"],
+  "references": [{ "path": "../shared" }]
+}

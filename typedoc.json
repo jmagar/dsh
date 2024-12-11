@@ -1,0 +1,24 @@
+{
+  "entryPoints": [
+    "shared/src",
+    "frontend/src",
+    "backend/src"
+  ],
+  "out": "docs/typescript",
+  "name": "DSH Documentation",
+  "theme": "default",
+  "excludePrivate": false,
+  "excludeProtected": false,
+  "excludeExternals": false,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "categoryOrder": ["Core", "Frontend", "Backend", "Shared", "*"],
+  "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-mermaid"],
+  "readme": "README.md",
+  "tsconfig": "tsconfig.json",
+  "sourceLinkTemplate": "https://github.com/{REPO_OWNER}/dsh/blob/{branch}/{path}#{line}",
+  "validation": {
+    "invalidLink": true,
+    "notDocumented": true
+  }
+}

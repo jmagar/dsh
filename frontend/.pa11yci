@@ -1,0 +1,20 @@
+{
+  "defaults": {
+    "standard": "WCAG2AA",
+    "timeout": 30000,
+    "wait": 1000,
+    "chromeLaunchConfig": {
+      "args": ["--no-sandbox"]
+    }
+  },
+  "urls": [
+    "http://localhost:3000",
+    "http://localhost:3000/servers",
+    "http://localhost:3000/metrics"
+  ],
+  "threshold": {
+    "errors": 0,
+    "warnings": 10,
+    "notices": 20
+  }
+}

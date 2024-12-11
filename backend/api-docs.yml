@@ -1,0 +1,77 @@
+openapi: 3.0.0
+info:
+  title: DSH API
+  version: 1.0.0
+  description: Server Monitoring Dashboard API
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /api/health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /api/servers:
+    get:
+      summary: List all servers
+      responses:
+        '200':
+          description: List of servers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Server'
+
+components:
+  schemas:
+    Server:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        hostname:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, error]
+        lastSeen:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          properties:
+            cpu:
+              type: number
+              format: float
+            memory:
+              type: number
+              format: float
+            disk:
+              type: number
+              format: float
+      required:
+        - id
+        - name
+        - hostname
+        - status

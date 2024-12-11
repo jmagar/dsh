@@ -1,0 +1,55 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Server {
+  id            String   @id @default(uuid())
+  name          String
+  hostname      String
+  ipAddress     String?
+  status        String   @default("offline") // online, offline, error
+  lastSeen      DateTime @default(now())
+  osInfo        Json?    // Operating system information
+  cpuInfo       Json?    // CPU information
+  memoryInfo    Json?    // Memory information
+  diskInfo      Json?    // Disk information
+  networkInfo   Json?    // Network information
+  processes     Process[]
+  metrics       Metric[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Process {
+  id          String   @id @default(uuid())
+  pid         Int
+  name        String
+  cpu         Float
+  memory      Float
+  status      String
+  server      Server   @relation(fields: [serverId], references: [id])
+  serverId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([serverId])
+}
+
+model Metric {
+  id          String   @id @default(uuid())
+  type        String   // cpu, memory, disk, network
+  value       Float
+  timestamp   DateTime @default(now())
+  server      Server   @relation(fields: [serverId], references: [id])
+  serverId    String
+
+  @@index([serverId, type, timestamp])
+} 
