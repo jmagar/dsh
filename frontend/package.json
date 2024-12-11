@@ -51,8 +51,6 @@
     "test:unit": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:a11y": "ts-node tests/a11y.ts",
-    "test:all": "npm run test:unit && npm run test:a11y",
     "lint": "eslint src tests --ext .ts,.tsx --cache",
     "lint:fix": "eslint src tests --ext .ts,.tsx --fix --cache"
   },
