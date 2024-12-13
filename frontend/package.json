@@ -3,26 +3,27 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@dsh/shared": "1.0.0",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.6",
     "@mui/material": "^5.15.6",
     "@mui/x-date-pickers": "^7.23.1",
     "@reduxjs/toolkit": "^2.1.0",
+    "@xterm/addon-fit": "^0.9.0",
+    "@xterm/xterm": "^5.3.0",
     "ajv": "^8.12.0",
     "ajv-keywords": "^5.1.0",
     "axios": "^1.6.7",
     "date-fns": "^3.3.1",
-    "react": "^18.2.0",
+    "react": "^18.3.1",
     "react-dom": "^18.2.0",
     "react-redux": "^9.1.0",
     "react-router-dom": "^6.21.3",
     "react-scripts": "^5.0.1",
+    "recharts": "^2.10.4",
     "socket.io-client": "^4.7.4",
-    "tailwindcss": "^3.4.1",
-    "@xterm/xterm": "^5.3.0",
-    "@xterm/addon-fit": "^0.9.0",
-    "recharts": "^2.10.4"
+    "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.2",
@@ -30,7 +31,7 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.16",
-    "@types/react": "^18.3.12",
+    "@types/react": "^18.3.16",
     "@types/react-dom": "^18.3.1",
     "@types/react-redux": "^7.1.33",
     "@types/react-router-dom": "^5.3.3",
@@ -54,7 +55,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src tests --ext .ts,.tsx --cache",
-    "lint:fix": "eslint src tests --ext .ts,.tsx --fix --cache"
+    "lint:fix": "eslint src tests --ext .ts,.tsx --fix --cache",
+    "type-check": "tsc --noEmit"
   },
   "browserslist": {
     "production": [

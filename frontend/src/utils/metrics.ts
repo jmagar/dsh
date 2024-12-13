@@ -1,5 +1,5 @@
 // External dependencies
-import { MetricType, MetricLabels, createLabels } from '@dsh/shared/utils/metrics';
+import { MetricType, MetricLabels, createLabels } from '@dsh/shared';
 
 // Internal dependencies
 import { logger } from './logger';

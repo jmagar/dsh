@@ -43,6 +43,7 @@
     "test:watch": "ts-node node_modules/jest/bin/jest.js --watch"
   },
   "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.14.5",
     "@commitlint/cli": "^18.4.3",
     "@commitlint/config-conventional": "^18.4.3",
     "@types/jsonwebtoken": "^9.0.7",

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
+import { EnvTest } from './components/EnvTest';
 import { SystemStatus } from './components/SystemStatus';
 import './styles/global.css';
 
@@ -16,6 +17,7 @@ const App: React.FC = () => {
             <Route path="/" element={<SystemStatus />} />
             <Route path="/servers" element={<div>Servers List</div>} />
             <Route path="/metrics" element={<div>Metrics Overview</div>} />
+            <Route path="/env-test" element={<EnvTest />} />
           </Routes>
         </main>
       </div>
