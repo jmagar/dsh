@@ -1,23 +1,31 @@
-import { PrismaClient } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+import { LogMetadata } from '@dsh/shared/utils/logger';
+import { PrismaClient, Prisma } from '@prisma/client';
+
+import { config } from '../config';
 
 import { logger } from './logger';
-import { metrics } from './metrics';
 
-interface PrismaEvent {
+interface LogEvent {
+  message: string;
   timestamp: Date;
-  query: string;
-  params: string;
-  duration: number;
-  target: string;
+  target?: string | null;
 }
 
-class DatabaseClient {
-  private readonly prisma: PrismaClient;
-  private isConnected = false;
+type PrismaEvents = {
+  query: (event: Prisma.QueryEvent) => void;
+  error: (event: LogEvent) => void;
+};
+
+export class DatabaseClient extends PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error'> {
+  private static instance: DatabaseClient | null = null;
 
   constructor() {
-    this.prisma = new PrismaClient({
+    super({
+      datasources: {
+        db: {
+          url: config.database.url,
+        },
+      },
       log: [
         {
           emit: 'event',
@@ -27,117 +35,75 @@ class DatabaseClient {
           emit: 'event',
           level: 'error',
         },
-        {
-          emit: 'event',
-          level: 'info',
-        },
-        {
-          emit: 'event',
-          level: 'warn',
-        },
       ],
     });
 
-    this.setupLogging();
-  }
+    // Type-safe event handlers
+    const client = this as PrismaClient & {
+      $on: <E extends keyof PrismaEvents>(event: E, listener: PrismaEvents[E]) => void;
+    };
 
-  private setupLogging(): void {
-    // Log queries
-    (this.prisma.$on as any)('query', (e: PrismaEvent) => {
-      const duration = e.duration / 1000; // Convert to seconds
-      logger.debug('Database query executed', {
+    client.$on('query', (event: Prisma.QueryEvent) => {
+      const metadata: Partial<LogMetadata> = {
         component: 'database',
-        query: e.query,
         metrics: {
-          duration,
-          params: e.params ? e.params.length : 0,
+          duration: event.duration,
+          query_length: event.query.length,
         },
-      });
-      metrics.recordDbQuery('query', this.extractTableName(e.query), duration);
+        message: event.query,
+      };
+
+      logger.debug('Database query', metadata);
     });
 
-    // Log info events
-    (this.prisma.$on as any)('info', (e: Prisma.LogEvent) => {
-      logger.info('Database info', {
-        component: 'database',
-        message: e.message,
-        target: e.target,
-      });
-    });
-
-    // Log warnings
-    (this.prisma.$on as any)('warn', (e: Prisma.LogEvent) => {
-      logger.warn('Database warning', {
-        component: 'database',
-        message: e.message,
-        target: e.target,
-      });
-    });
-
-    // Update connection metrics periodically
-    setInterval(async () => {
-      try {
-        await this.prisma.$queryRaw`SELECT 1`;
-        this.isConnected = true;
-        metrics.setDbConnections(1);
-      } catch (error) {
-        this.isConnected = false;
-        metrics.setDbConnections(0);
-        logger.error('Database connection error', {
+    client.$on('error', (event: LogEvent) => {
+      // Explicitly handle null and undefined cases first
+      if (event.target === null || event.target === undefined) {
+        const metadata: Partial<LogMetadata> = {
           component: 'database',
-          error: error instanceof Error ? error : new Error('Unknown error'),
-        });
+          error: new Error(event.message),
+          metrics: {
+            timestamp: event.timestamp.getTime(),
+          },
+        };
+        logger.error('Database error', metadata);
+        return;
       }
-    }, 30000);
+
+      // Now we know target is a string, handle empty string case
+      const trimmedTarget = event.target.trim();
+      if (trimmedTarget === '') {
+        const metadata: Partial<LogMetadata> = {
+          component: 'database',
+          error: new Error(event.message),
+          metrics: {
+            timestamp: event.timestamp.getTime(),
+          },
+        };
+        logger.error('Database error', metadata);
+        return;
+      }
+
+      // Now we have a non-empty string target
+      const metadata: Partial<LogMetadata> = {
+        component: 'database',
+        error: new Error(event.message),
+        metrics: {
+          timestamp: event.timestamp.getTime(),
+        },
+        target: trimmedTarget,
+      };
+
+      logger.error('Database error', metadata);
+    });
   }
 
-  private extractTableName(query: string): string {
-    const match = query.match(/FROM\s+"?(\w+)"?/i);
-    return match ? match[1].toLowerCase() : 'unknown';
-  }
-
-  async connect(): Promise<void> {
-    try {
-      await this.prisma.$connect();
-      this.isConnected = true;
-      metrics.setDbConnections(1);
-      logger.info('Database connected', {
-        component: 'database',
-      });
-    } catch (error) {
-      this.isConnected = false;
-      metrics.setDbConnections(0);
-      logger.error('Database connection error', {
-        component: 'database',
-        error: error instanceof Error ? error : new Error('Unknown error'),
-      });
-      throw error;
+  public static getInstance(): DatabaseClient {
+    if (!DatabaseClient.instance) {
+      DatabaseClient.instance = new DatabaseClient();
     }
-  }
-
-  async disconnect(): Promise<void> {
-    try {
-      await this.prisma.$disconnect();
-      this.isConnected = false;
-      metrics.setDbConnections(0);
-      logger.info('Database disconnected', {
-        component: 'database',
-      });
-    } catch (error) {
-      logger.error('Database disconnection error', {
-        component: 'database',
-        error: error instanceof Error ? error : new Error('Unknown error'),
-      });
-      throw error;
-    }
-  }
-
-  get client(): PrismaClient {
-    if (!this.isConnected) {
-      throw new Error('Database is not connected');
-    }
-    return this.prisma;
+    return DatabaseClient.instance;
   }
 }
 
-export const db = new DatabaseClient();
+export const db = DatabaseClient.getInstance();

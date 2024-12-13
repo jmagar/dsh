@@ -1,12 +1,15 @@
 import type { A11yCheck } from '../src/utils/a11y';
 import { checkAccessibility } from '../src/utils/a11y';
 
+// Use type augmentation instead of namespace
+type JestMatchers<R> = {
+  toHaveLength(length: number): R;
+  toEqual(expected: unknown): R;
+};
+
 declare global {
-  namespace jest {
-    interface Matchers<R> {
-      toHaveLength(length: number): R;
-      toEqual(expected: unknown): R;
-    }
+  interface Expect {
+    <R>(actual: unknown): JestMatchers<R>;
   }
 }
 

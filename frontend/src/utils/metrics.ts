@@ -1,211 +1,202 @@
-import { MetricType, MetricNames, LabelNames, createLabels, MetricLabels } from '@dsh/shared/utils/metrics';
+// External dependencies
+import { MetricType, MetricLabels, createLabels } from '@dsh/shared/utils/metrics';
+
+// Internal dependencies
 import { logger } from './logger';
 
+interface BaseMetric {
+  name: string;
+  value: number;
+  labels?: MetricLabels;
+}
+
+interface MetricPayload {
+  name: string;
+  value: number;
+  type: MetricType;
+  labels: MetricLabels;
+}
+
 class BrowserMetrics {
-  private metrics: Map<string, any> = new Map();
-  private readonly service: string;
-  private readonly environment: string;
-
-  constructor(service: string, environment: string) {
-    this.service = service;
-    this.environment = environment;
-    this.initializeMetrics();
-    this.setupPerformanceObserver();
-  }
-
-  private initializeMetrics() {
-    // Component render times
-    this.metrics.set('component_render_time', {
-      type: MetricType.HISTOGRAM,
-      values: new Map<string, number[]>()
-    });
-
-    // Route change times
-    this.metrics.set('route_change_time', {
-      type: MetricType.HISTOGRAM,
-      values: new Map<string, number[]>()
-    });
-
-    // API call latencies
-    this.metrics.set('api_call_duration', {
-      type: MetricType.HISTOGRAM,
-      values: new Map<string, number[]>()
-    });
-
-    // Error counts
-    this.metrics.set('error_count', {
-      type: MetricType.COUNTER,
-      value: 0
-    });
-
-    // Resource load times
-    this.metrics.set('resource_load_time', {
-      type: MetricType.HISTOGRAM,
-      values: new Map<string, number[]>()
-    });
-  }
-
-  private setupPerformanceObserver() {
-    if (typeof window !== 'undefined' && 'PerformanceObserver' in window) {
-      // Observe paint timing
-      const paintObserver = new PerformanceObserver(entries => {
-        entries.getEntries().forEach(entry => {
-          this.recordPerformanceMetric('paint', entry);
-        });
-      });
-      paintObserver.observe({ entryTypes: ['paint'] });
-
-      // Observe resource timing
-      const resourceObserver = new PerformanceObserver(entries => {
-        entries.getEntries().forEach(entry => {
-          this.recordPerformanceMetric('resource', entry);
-        });
-      });
-      resourceObserver.observe({ entryTypes: ['resource'] });
-
-      // Observe navigation timing
-      const navigationObserver = new PerformanceObserver(entries => {
-        entries.getEntries().forEach(entry => {
-          this.recordPerformanceMetric('navigation', entry);
-        });
-      });
-      navigationObserver.observe({ entryTypes: ['navigation'] });
+  private metrics: Map<
+    string,
+    {
+      type: MetricType;
+      value: number;
+      labels: MetricLabels;
     }
+  > = new Map();
+
+  constructor(
+    private readonly namespace: string,
+    private readonly environment: string
+  ) {}
+
+  private createMetricKey(name: string, labels: MetricLabels = {}): string {
+    const labelStr = Object.entries(labels)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(',');
+    return `${name}${labelStr ? `:${labelStr}` : ''}`;
   }
 
-  private recordPerformanceMetric(type: string, entry: PerformanceEntry) {
-    const labels = createLabels(this.service, this.environment, {
-      type,
-      name: entry.name,
-      entryType: entry.entryType
-    });
+  increment(name: string, labels: MetricLabels = {}): void {
+    const key = this.createMetricKey(name, labels);
+    const existing = this.metrics.get(key);
 
-    if (entry instanceof PerformanceResourceTiming) {
-      this.observe('resource_load_time', entry.duration, this.convertLabels(labels));
+    if (existing) {
+      existing.value += 1;
     } else {
-      this.observe(`${type}_time`, entry.duration, this.convertLabels(labels));
+      this.metrics.set(key, {
+        type: MetricType.COUNTER,
+        value: 1,
+        labels,
+      });
     }
   }
 
-  // Record component render time
-  recordRenderTime(componentName: string, duration: number) {
-    const labels = createLabels(this.service, this.environment, {
-      component: componentName
+  gauge(name: string, value: number, labels: MetricLabels = {}): void {
+    const key = this.createMetricKey(name, labels);
+    this.metrics.set(key, {
+      type: MetricType.GAUGE,
+      value,
+      labels,
     });
-    this.observe('component_render_time', duration, this.convertLabels(labels));
   }
 
-  // Record route change time
-  recordRouteChange(from: string, to: string, duration: number) {
-    const labels = createLabels(this.service, this.environment, {
-      from,
-      to
+  histogram(name: string, value: number, labels: MetricLabels = {}): void {
+    const key = this.createMetricKey(name, labels);
+    this.metrics.set(key, {
+      type: MetricType.HISTOGRAM,
+      value,
+      labels,
     });
-    this.observe('route_change_time', duration, this.convertLabels(labels));
   }
 
-  // Record API call duration
-  recordApiCall(endpoint: string, method: string, duration: number, status: number) {
-    const labels = createLabels(this.service, this.environment, {
-      endpoint,
-      method,
-      status: status.toString()
-    });
-    this.observe('api_call_duration', duration, this.convertLabels(labels));
-  }
+  sendToBackend(): void {
+    if (this.metrics.size === 0) return;
 
-  // Record error
-  recordError(type: string, message: string) {
-    const labels = createLabels(this.service, this.environment, {
-      type,
-      message
-    });
-    this.increment('error_count', this.convertLabels(labels));
-  }
-
-  // Convert MetricLabels to Record<string, string>
-  private convertLabels(labels: MetricLabels): Record<string, string> {
-    const result: Record<string, string> = {};
-    Object.entries(labels).forEach(([key, value]) => {
-      result[key] = String(value);
-    });
-    return result;
-  }
-
-  // Generic observe method for histograms
-  private observe(name: string, value: number, labels: Record<string, string>) {
-    const metric = this.metrics.get(name);
-    if (metric && metric.type === MetricType.HISTOGRAM) {
-      const key = JSON.stringify(labels);
-      const values = metric.values.get(key) || [];
-      values.push(value);
-      metric.values.set(key, values);
-
-      // Send to backend in production
-      if (process.env.NODE_ENV === 'production') {
-        this.sendToBackend({
-          name,
-          type: MetricType.HISTOGRAM,
-          value,
-          labels
-        });
-      }
-    }
-  }
-
-  // Generic increment method for counters
-  private increment(name: string, labels: Record<string, string>) {
-    const metric = this.metrics.get(name);
-    if (metric && metric.type === MetricType.COUNTER) {
-      metric.value++;
-
-      // Send to backend in production
-      if (process.env.NODE_ENV === 'production') {
-        this.sendToBackend({
-          name,
-          type: MetricType.COUNTER,
-          value: 1,
-          labels
-        });
-      }
-    }
-  }
-
-  // Send metrics to backend
-  private async sendToBackend(metric: any) {
     try {
-      await fetch('/api/metrics', {
+      const metricsPayload: MetricPayload[] = Array.from(this.metrics.entries()).map(
+        ([key, metric]) => {
+          const [name] = key.split(':');
+          return {
+            name: name ?? 'unknown',
+            value: metric.value,
+            type: metric.type,
+            labels: createLabels(this.namespace, this.environment, metric.labels),
+          };
+        }
+      );
+
+      void fetch('/api/metrics', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(metric)
-      });
-    } catch (error) {
-      logger.error('Failed to send metric to backend:', { error });
-    }
-  }
+        body: JSON.stringify(metricsPayload),
+      }).catch((error: unknown) => {
+        const errorMessage = error instanceof Error ? error : new Error(String(error));
 
-  // Get current metrics (for debugging)
-  getMetrics() {
-    const result: Record<string, any> = {};
-    this.metrics.forEach((value, key) => {
-      if (value.type === MetricType.HISTOGRAM) {
-        const entries = Array.from(value.values.entries());
-        result[key] = entries.map((entry) => {
-          const [labels, values] = entry as [string, number[]];
-          return {
-            labels: JSON.parse(labels),
-            values
-          };
+        const metricsRecord = metricsPayload.reduce<Record<string, number>>((acc, metric) => {
+          acc[metric.name] = metric.value;
+          return acc;
+        }, {});
+
+        logger.error('Failed to send metrics', {
+          error: errorMessage,
+          metrics: metricsRecord,
         });
-      } else {
-        result[key] = value.value;
-      }
-    });
-    return result;
+      });
+
+      // Clear metrics after sending
+      this.metrics.clear();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error : new Error(String(error));
+
+      logger.error('Error preparing metrics payload', {
+        error: errorMessage,
+      });
+    }
   }
 }
 
-// Create singleton instance
-export const metrics = new BrowserMetrics('dsh-frontend', process.env.NODE_ENV || 'development');
+class FrontendMetrics {
+  private metrics: BaseMetric[] = [];
+
+  increment(name: string, labels: MetricLabels = {}): void {
+    const existingMetric = this.metrics.find(
+      m => m.name === name && this.labelsMatch(m.labels, labels)
+    );
+
+    if (existingMetric) {
+      existingMetric.value += 1;
+    } else {
+      this.metrics.push({
+        name,
+        value: 1,
+        labels,
+      });
+    }
+  }
+
+  private labelsMatch(labels1?: MetricLabels, labels2?: MetricLabels): boolean {
+    if (!labels1 && !labels2) return true;
+    if (!labels1 || !labels2) return false;
+
+    return (
+      Object.keys(labels1).every(key => labels1[key] === labels2[key]) &&
+      Object.keys(labels2).every(key => labels2[key] === labels1[key])
+    );
+  }
+
+  sendToBackend(): void {
+    if (this.metrics.length === 0) return;
+
+    try {
+      const env = process.env.NODE_ENV;
+      const environment = env !== null && env !== undefined ? env : 'development';
+
+      const metricsPayload: MetricPayload[] = this.metrics.map(metric => ({
+        name: metric.name,
+        value: metric.value,
+        type: MetricType.COUNTER,
+        labels: createLabels('frontend', environment, metric.labels ?? {}),
+      }));
+
+      void fetch('/api/metrics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(metricsPayload),
+      }).catch((error: unknown) => {
+        const errorMessage = error instanceof Error ? error : new Error(String(error));
+
+        const metricsRecord = metricsPayload.reduce<Record<string, number>>((acc, metric) => {
+          acc[metric.name] = metric.value;
+          return acc;
+        }, {});
+
+        logger.error('Failed to send metrics', {
+          error: errorMessage,
+          metrics: metricsRecord,
+        });
+      });
+
+      // Clear metrics after sending
+      this.metrics = [];
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error : new Error(String(error));
+
+      logger.error('Error preparing metrics payload', {
+        error: errorMessage,
+      });
+    }
+  }
+}
+
+// Create singleton instances
+const env = process.env.NODE_ENV;
+const environment = env !== null && env !== undefined ? env : 'development';
+export const metrics = new BrowserMetrics('dsh-frontend', environment);
+export const frontendMetrics = new FrontendMetrics();

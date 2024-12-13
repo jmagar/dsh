@@ -1,52 +1,72 @@
-import { createServer as createHttpServer, type Server } from 'http';
+import 'dotenv/config';
+import { createServer as createHttpServer } from 'http';
 
 import compression from 'compression';
 import cors from 'cors';
-import express, { type Express, type Request, type Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import express, { json, urlencoded } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
-import jwt from 'jsonwebtoken';
-import type { JwtPayload } from 'jsonwebtoken';
-import { Server as SocketServer, type Socket } from 'socket.io';
+import { verify } from 'jsonwebtoken';
+import { Server as SocketServer } from 'socket.io';
 
 import { config } from './config';
+import { setupAgentRoutes } from './routes/agent';
+import { setupHealthRoutes } from './routes/health';
+import { AgentMonitor } from './utils/agent';
+import { db } from './utils/db';
 import { logger } from './utils/logger';
+import { redis } from './utils/redis';
 
 interface SocketData {
-  user: JwtPayload;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
 }
 
-export async function createServer(): Promise<Server> {
-  const app: Express = express();
+interface SocketAuth {
+  token: string;
+}
+
+// Extend SocketServer with additional properties while maintaining base functionality
+type SocketIOServer = SocketServer<
+  Record<string, never>,
+  Record<string, never>,
+  Record<string, never>,
+  SocketData
+> & {
+  engine: {
+    clientsCount: number;
+  };
+};
+
+export function createServer(): ReturnType<typeof createHttpServer> {
+  const app = express();
 
   // Security middleware
   app.use(helmet());
   app.use(cors());
   app.use(
     rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // Limit each IP to 100 requests per windowMs
+      windowMs: config.rateLimit.windowMs,
+      max: config.rateLimit.max,
     })
   );
 
   // Request handling middleware
   app.use(compression());
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(json());
+  app.use(urlencoded({ extended: true }));
   app.use(logger.requestLogger());
 
   // Error handling
   app.use(logger.errorLogger());
 
-  // Health check
-  app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({ status: 'ok' });
-  });
-
   // Create HTTP server
   const server = createHttpServer(app);
 
-  // Socket.IO setup
+  // Socket.IO setup with proper typing
   const io = new SocketServer<
     Record<string, never>,
     Record<string, never>,
@@ -57,42 +77,47 @@ export async function createServer(): Promise<Server> {
       origin: config.server.frontendUrl,
       methods: ['GET', 'POST'],
     },
-  });
+  }) as SocketIOServer;
 
-  // Socket authentication middleware
-  io.use((socket: Socket, next) => {
-    const token = socket.handshake.auth.token;
-    if (typeof token !== 'string') {
+  const agentMonitor = AgentMonitor.getInstance(db, redis);
+
+  // Add routes
+  app.use('/health', setupHealthRoutes(db, redis));
+  app.use('/agent', setupAgentRoutes(io, db, redis, agentMonitor));
+
+  // Socket authentication middleware (for non-agent connections)
+  io.of('/').use((socket, next) => {
+    const auth = socket.handshake.auth as SocketAuth;
+    if (!auth?.token || typeof auth.token !== 'string') {
       next(new Error('Authentication required'));
       return;
     }
 
     try {
-      const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
-      socket.data.user = decoded;
+      const decoded = verify(auth.token, config.jwt.secret) as SocketData['user'];
+      socket.data = { user: decoded };
       next();
     } catch (error) {
-      next(new Error('Invalid token'));
+      next(new Error('Invalid authentication token'));
     }
   });
 
   // Socket connection handling
-  io.on('connection', (socket: Socket) => {
+  io.on('connection', socket => {
     logger.info('Socket connected', {
       component: 'server',
       metrics: {
         socketConnections: io.engine.clientsCount,
-        socketId: parseInt(socket.id.replace(/\D/g, ''), 10) || 0,
       },
     });
 
-    socket.on('error', (error: Error) => {
+    socket.on('error', (error: unknown) => {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
       logger.error('Socket error', {
         component: 'server',
-        error: error instanceof Error ? error : new Error(String(error)),
+        error: errorObj,
         metrics: {
           socketConnections: io.engine.clientsCount,
-          socketId: parseInt(socket.id.replace(/\D/g, ''), 10) || 0,
         },
       });
     });
@@ -102,7 +127,6 @@ export async function createServer(): Promise<Server> {
         component: 'server',
         metrics: {
           socketConnections: io.engine.clientsCount,
-          socketId: parseInt(socket.id.replace(/\D/g, ''), 10) || 0,
         },
       });
     });

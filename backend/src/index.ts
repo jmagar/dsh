@@ -1,5 +1,6 @@
-import express from 'express';
 import { VERSION } from '@dsh/shared';
+import express from 'express';
+
 import { config } from './config';
 
 const app = express();

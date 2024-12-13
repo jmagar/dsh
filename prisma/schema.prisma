@@ -26,6 +26,8 @@ model Server {
   metrics       Metric[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@unique([hostname, ipAddress])
 }
 
 model Process {
@@ -52,4 +54,4 @@ model Metric {
   serverId    String
 
   @@index([serverId, type, timestamp])
-} 
+}

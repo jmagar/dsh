@@ -1,121 +1,187 @@
-import type { AgentMetadata } from '@dsh/shared/utils/logger';
 import { createLogMetadata } from '@dsh/shared/utils/logger';
-import { Counter, Gauge } from 'prom-client';
+
+import { DatabaseClient } from './db';
+import { logger } from './logger';
+import { RedisClient } from './redis';
 
 interface AgentMetrics {
-  taskCount: Counter<string>;
-  taskDuration: Gauge<string>;
-  resourceUsage: Gauge<string>;
-  messageCount: Counter<string>;
-  errorCount: Counter<string>;
+  cpu?: {
+    usage: number;
+  };
+  memory?: {
+    used: number;
+    total: number;
+  };
+  os?: {
+    platform: string;
+    release: string;
+  };
+  timestamp: number;
 }
 
 export class AgentMonitor {
-  private metrics: AgentMetrics;
+  private static instance: AgentMonitor | null = null;
 
-  constructor() {
-    this.metrics = {
-      taskCount: new Counter({
-        name: 'agent_task_total',
-        help: 'Total number of agent tasks',
-        labelNames: ['status'],
-      }),
-      taskDuration: new Gauge({
-        name: 'agent_task_duration_seconds',
-        help: 'Duration of agent tasks',
-        labelNames: ['type'],
-      }),
-      resourceUsage: new Gauge({
-        name: 'agent_resource_usage',
-        help: 'Agent resource usage',
-        labelNames: ['resource'],
-      }),
-      messageCount: new Counter({
-        name: 'agent_message_total',
-        help: 'Total number of agent messages',
-        labelNames: ['type'],
-      }),
-      errorCount: new Counter({
-        name: 'agent_error_total',
-        help: 'Total number of agent errors',
-        labelNames: ['type'],
-      }),
-    };
+  private constructor(
+    private readonly db: DatabaseClient,
+    private readonly redis: RedisClient
+  ) {}
+
+  public static getInstance(db: DatabaseClient, redis: RedisClient): AgentMonitor {
+    if (AgentMonitor.instance === null) {
+      AgentMonitor.instance = new AgentMonitor(db, redis);
+    }
+    return AgentMonitor.instance;
   }
 
-  logTaskStart(taskId: string): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId: taskId,
-      taskId,
-      state: 'started',
-    } as Partial<AgentMetadata>);
-    console.info('Agent task started', metadata);
-    this.metrics.taskCount.inc({ status: 'started' });
+  async handleMetrics(hostname: string, metrics: AgentMetrics): Promise<void> {
+    try {
+      // Validate input
+      if (!hostname) {
+        throw new Error('Hostname is required');
+      }
+
+      // Convert timestamp to number if it's a string
+      const timestamp = Number(metrics.timestamp);
+
+      if (isNaN(timestamp)) {
+        throw new Error('Invalid timestamp');
+      }
+
+      // Prepare metric data with safe defaults
+      const metricData = {
+        serverId: hostname,
+        type: 'agent_metrics',
+        value: metrics.cpu?.usage ?? 0,
+        timestamp: new Date(timestamp),
+      };
+
+      // Store metrics in database
+      await this.db.metric.create({
+        data: metricData,
+      });
+
+      // Prepare cache data with normalized timestamp
+      const cacheData = JSON.stringify({
+        ...metrics,
+        hostname,
+        timestamp,
+      });
+
+      // Cache latest metrics in Redis with TTL
+      const cacheKey = `metrics:${hostname}:latest`;
+      await this.redis.set(
+        cacheKey,
+        cacheData,
+        'EX',
+        300 // 5 minutes TTL
+      );
+
+      const logMetadata = createLogMetadata('agent-monitor', undefined, {
+        metrics: {
+          timestamp,
+          cpu_usage: metrics.cpu?.usage ?? 0,
+          memory_used: metrics.memory?.used ?? 0,
+          memory_total: metrics.memory?.total ?? 0,
+        },
+      });
+
+      logger.info('Processed agent metrics', logMetadata);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      const logMetadata = createLogMetadata('agent-monitor', error, {
+        metrics: {
+          timestamp: Number(metrics.timestamp),
+        },
+      });
+
+      logger.error('Failed to process agent metrics', logMetadata);
+      throw error;
+    }
   }
 
-  logTaskComplete(taskId: string, duration: number): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId: taskId,
-      taskId,
-      state: 'completed',
-      duration,
-    } as Partial<AgentMetadata>);
-    console.info('Agent task completed', metadata);
-    this.metrics.taskCount.inc({ status: 'completed' });
-    this.metrics.taskDuration.set({ type: 'task' }, duration);
-  }
+  async getLatestMetrics(hostname: string): Promise<AgentMetrics | null> {
+    if (!hostname) {
+      const logMetadata = createLogMetadata('agent-monitor', new Error('Empty hostname'));
+      logger.warn('Attempted to get metrics with empty hostname', logMetadata);
+      return null;
+    }
 
-  logTaskFailure(taskId: string, error: Error): void {
-    const metadata = createLogMetadata('agent', error, {
-      agentId: taskId,
-      taskId,
-      state: 'failed',
-    } as Partial<AgentMetadata>);
-    console.error('Agent task failed', metadata);
-    this.metrics.taskCount.inc({ status: 'failed' });
-    this.metrics.errorCount.inc({ type: 'task' });
-  }
+    try {
+      const cacheKey = `metrics:${hostname}:latest`;
+      const cached = await this.redis.get(cacheKey);
 
-  logStateChange(agentId: string, newState: string): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId,
-      state: newState,
-    } as Partial<AgentMetadata>);
-    console.info('Agent state changed', metadata);
-  }
+      if (typeof cached === 'string' && cached.trim() !== '') {
+        try {
+          const parsedMetrics = JSON.parse(cached) as AgentMetrics;
 
-  logResourceUsage(agentId: string, cpu: number, memory: number): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId,
-      metrics: {
-        cpu,
-        memory,
-      },
-    } as Partial<AgentMetadata>);
-    console.debug('Agent resource usage', metadata);
-    this.metrics.resourceUsage.set({ resource: 'cpu' }, cpu);
-    this.metrics.resourceUsage.set({ resource: 'memory' }, memory);
-  }
+          // Validate parsed metrics
+          const isValidMetrics =
+            parsedMetrics !== null &&
+            parsedMetrics !== undefined &&
+            typeof parsedMetrics.timestamp === 'number' &&
+            parsedMetrics.timestamp > 0;
 
-  logMessageSent(agentId: string, messageType: string): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId,
-      metrics: {
-        messageType: 1,
-      },
-    } as Partial<AgentMetadata>);
-    console.debug('Agent message sent', metadata);
-    this.metrics.messageCount.inc({ type: 'sent' });
-  }
+          if (isValidMetrics) {
+            return parsedMetrics;
+          }
+        } catch (parseErr) {
+          const error = parseErr instanceof Error ? parseErr : new Error(String(parseErr));
+          const logMetadata = createLogMetadata('agent-monitor', error);
+          logger.warn('Failed to parse cached metrics', logMetadata);
+        }
+      }
 
-  logMessageReceived(agentId: string, messageType: string): void {
-    const metadata = createLogMetadata('agent', undefined, {
-      agentId,
-      metrics: {
-        messageType: 1,
-      },
-    } as Partial<AgentMetadata>);
-    console.debug('Agent message received', metadata);
-    this.metrics.messageCount.inc({ type: 'received' });
+      // Fetch from database if no valid cache
+      const latest = await this.db.metric.findFirst({
+        where: {
+          serverId: hostname,
+          type: 'agent_metrics',
+        },
+        orderBy: {
+          timestamp: 'desc',
+        },
+      });
+
+      if (!latest) {
+        return null;
+      }
+
+      const metrics: AgentMetrics = {
+        timestamp: latest.timestamp.getTime(),
+        cpu: {
+          usage: Number.isFinite(Number(latest.value)) ? Number(latest.value) : 0,
+        },
+      };
+
+      // Attempt to cache retrieved metrics
+      try {
+        await this.redis.set(
+          cacheKey,
+          JSON.stringify(metrics),
+          'EX',
+          300 // 5 minutes TTL
+        );
+      } catch (cacheErr) {
+        const error = cacheErr instanceof Error ? cacheErr : new Error(String(cacheErr));
+        const logMetadata = createLogMetadata('agent-monitor', error);
+        logger.warn('Failed to cache retrieved metrics', logMetadata);
+      }
+
+      return metrics;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      const logMetadata = createLogMetadata('agent-monitor', error, {
+        metrics: { hostname_length: hostname.length },
+      });
+      logger.error('Failed to get latest metrics', logMetadata);
+      throw error;
+    }
   }
 }
+
+// Create singleton instance
+export const agentMonitor = AgentMonitor.getInstance(
+  DatabaseClient.getInstance(),
+  RedisClient.getInstance()
+);

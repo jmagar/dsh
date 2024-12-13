@@ -9,6 +9,7 @@ export class BackendMetrics {
   private httpErrorTotal: Counter<string>;
   private dbQueryDuration: Gauge<string>;
   private dbErrorTotal: Counter<string>;
+  private dbConnectionsGauge: Gauge<string>;
   private redisOperationDuration: Gauge<string>;
   private redisErrorTotal: Counter<string>;
   private agentTaskTotal: Counter<string>;
@@ -52,6 +53,12 @@ export class BackendMetrics {
       name: 'db_errors_total',
       help: 'Total number of database errors',
       labelNames: ['operation', 'table'],
+      registers: [this.registry],
+    });
+
+    this.dbConnectionsGauge = new Gauge({
+      name: 'db_connections_total',
+      help: 'Current number of database connections',
       registers: [this.registry],
     });
 
@@ -108,6 +115,10 @@ export class BackendMetrics {
   recordDbError(operation: string, table: string): void {
     const labels = { operation, table };
     this.dbErrorTotal.inc(labels);
+  }
+
+  setDbConnections(count: number): void {
+    this.dbConnectionsGauge.set(count);
   }
 
   recordRedisOperation(operation: string, duration: number): void {

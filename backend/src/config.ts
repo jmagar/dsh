@@ -1,4 +1,10 @@
+import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
+
+import { env } from './env';
+
+// Load environment variables
+dotenvConfig();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -11,61 +17,28 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
 });
 
-type Env = z.infer<typeof envSchema>;
+const validatedEnv = envSchema.parse(env);
 
-interface Config {
-  readonly env: Env['NODE_ENV'];
-  readonly isProduction: boolean;
-  readonly isDevelopment: boolean;
-  readonly isTest: boolean;
-  readonly server: {
-    readonly port: number;
-    readonly frontendUrl: string;
-  };
-  readonly jwt: {
-    readonly secret: string;
-  };
-  readonly redis: {
-    readonly url: string;
-  };
-  readonly database: {
-    readonly url: string;
-  };
-  readonly rateLimit: {
-    readonly windowMs: number;
-    readonly max: number;
-  };
-}
-
-function validateEnv(): Env {
-  const env = envSchema.parse(process.env);
-  return env;
-}
-
-function createConfig(env: Env): Config {
-  return {
-    env: env.NODE_ENV,
-    isProduction: env.NODE_ENV === 'production',
-    isDevelopment: env.NODE_ENV === 'development',
-    isTest: env.NODE_ENV === 'test',
-    server: {
-      port: env.PORT,
-      frontendUrl: env.FRONTEND_URL,
-    },
-    jwt: {
-      secret: env.JWT_SECRET,
-    },
-    redis: {
-      url: env.REDIS_URL,
-    },
-    database: {
-      url: env.DATABASE_URL,
-    },
-    rateLimit: {
-      windowMs: env.RATE_LIMIT_WINDOW_MS,
-      max: env.RATE_LIMIT_MAX_REQUESTS,
-    },
-  };
-}
-
-export const config = createConfig(validateEnv());
+export const config = {
+  env: validatedEnv.NODE_ENV,
+  isProduction: validatedEnv.NODE_ENV === 'production',
+  isDevelopment: validatedEnv.NODE_ENV === 'development',
+  isTest: validatedEnv.NODE_ENV === 'test',
+  server: {
+    port: validatedEnv.PORT,
+    frontendUrl: validatedEnv.FRONTEND_URL,
+  },
+  jwt: {
+    secret: validatedEnv.JWT_SECRET,
+  },
+  redis: {
+    url: validatedEnv.REDIS_URL,
+  },
+  database: {
+    url: validatedEnv.DATABASE_URL,
+  },
+  rateLimit: {
+    windowMs: validatedEnv.RATE_LIMIT_WINDOW_MS,
+    max: validatedEnv.RATE_LIMIT_MAX_REQUESTS,
+  },
+} as const;

@@ -1,14 +1,27 @@
-/// <reference types="@testing-library/jest-dom" />
+// External dependencies
 import '@testing-library/jest-dom';
 
 // Mock console methods to avoid noise in test output
-const mockConsole = {
+const mockConsole: Console = {
   ...console,
-  log: jest.fn() as jest.Mock<typeof console.log>,
-  debug: jest.fn() as jest.Mock<typeof console.debug>,
-  info: jest.fn() as jest.Mock<typeof console.info>,
-  warn: jest.fn() as jest.Mock<typeof console.warn>,
-  error: jest.fn() as jest.Mock<typeof console.error>,
+  log: jest.fn().mockImplementation(() => {}),
+  debug: jest.fn().mockImplementation(() => {}),
+  info: jest.fn().mockImplementation(() => {}),
+  warn: jest.fn().mockImplementation(() => {}),
+  error: jest.fn().mockImplementation(() => {}),
+  trace: jest.fn().mockImplementation(() => {}),
+  group: jest.fn().mockImplementation(() => {}),
+  groupCollapsed: jest.fn().mockImplementation(() => {}),
+  groupEnd: jest.fn().mockImplementation(() => {}),
+  table: jest.fn().mockImplementation(() => {}),
+  time: jest.fn().mockImplementation(() => {}),
+  timeEnd: jest.fn().mockImplementation(() => {})
 } as Console;
 
+// Assign mocked console globally
 global.console = mockConsole;
+
+// Optional: Reset mocks before each test
+beforeEach(() => {
+  jest.clearAllMocks();
+});

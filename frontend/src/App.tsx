@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+import { SystemStatus } from './components/SystemStatus';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -11,7 +13,7 @@ const App: React.FC = () => {
         </header>
         <main>
           <Routes>
-            <Route path="/" element={<div>Dashboard Home</div>} />
+            <Route path="/" element={<SystemStatus />} />
             <Route path="/servers" element={<div>Servers List</div>} />
             <Route path="/metrics" element={<div>Metrics Overview</div>} />
           </Routes>
@@ -21,4 +23,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App; 
+export default App;

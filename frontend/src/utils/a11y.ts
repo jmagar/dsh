@@ -1,10 +1,10 @@
 import type { IncomingMessage } from 'http';
 import * as http from 'http';
 
-import type { LogMetadata } from '@dsh/shared/utils/logger';
-import { LogLevel } from '@dsh/shared/utils/logger';
 import type { HTMLElement } from 'node-html-parser';
 import { parse } from 'node-html-parser';
+
+import { logger } from './logger';
 
 export interface A11yCheck {
   element: string;
@@ -20,7 +20,7 @@ function checkAccessibility(html: string): A11yCheck[] {
   const images = root.querySelectorAll('img');
   images.forEach((img: HTMLElement) => {
     const alt = img.getAttribute('alt');
-    if (alt === null || alt === '') {
+    if (alt === null || alt === undefined || alt.trim().length === 0) {
       issues.push({
         element: 'img',
         issue: 'Missing alt text',
@@ -33,7 +33,7 @@ function checkAccessibility(html: string): A11yCheck[] {
   const inputs = root.querySelectorAll('input');
   inputs.forEach((input: HTMLElement) => {
     const id = input.getAttribute('id');
-    if (id) {
+    if (id !== null && id !== undefined && id.trim().length > 0) {
       const label = root.querySelector(`label[for="${id}"]`);
       if (!label) {
         issues.push({
@@ -87,16 +87,35 @@ export async function runAccessibilityChecks(urls: string[]): Promise<void> {
             });
             res.on('end', () => {
               const issues = checkAccessibility(data);
-              console.log(`Accessibility check results for ${url}:`);
+
+              // Log check results
+              logger.info(`Accessibility check results for ${url}`, {
+                component: 'accessibility',
+                target: url,
+                metrics: {
+                  total_issues: issues.length,
+                  error_count: issues.filter(i => i.severity === 'error').length,
+                  warning_count: issues.filter(i => i.severity === 'warning').length,
+                  info_count: issues.filter(i => i.severity === 'info').length,
+                },
+              });
 
               if (issues.length === 0) {
-                console.log('No accessibility issues found.');
+                logger.info('No accessibility issues found.', {
+                  component: 'accessibility',
+                  target: url,
+                });
                 resolve();
                 return;
               }
 
+              // Log individual issues
               issues.forEach(issue => {
-                console.log(`- ${issue.severity.toUpperCase()}: ${issue.issue} (${issue.element})`);
+                logger.warn('Accessibility issue detected', {
+                  component: 'accessibility',
+                  target: url,
+                  message: `${issue.severity.toUpperCase()}: ${issue.issue} in <${issue.element}>`,
+                });
               });
 
               if (issues.some(i => i.severity === 'error')) {
@@ -107,22 +126,20 @@ export async function runAccessibilityChecks(urls: string[]): Promise<void> {
             });
           })
           .on('error', (error: Error) => {
-            const metadata: LogMetadata = {
+            logger.error('Failed to fetch URL for accessibility check', {
               component: 'accessibility',
               error,
               target: url,
-            };
-            console.error('Failed to fetch URL for accessibility check', metadata);
+            });
             reject(error);
           });
       });
     }
   } catch (error) {
-    const metadata: LogMetadata = {
+    logger.error('Accessibility check failed', {
       component: 'accessibility',
       error: error instanceof Error ? error : new Error('Unknown error'),
-    };
-    console.error('Accessibility check failed', metadata);
+    });
     throw error;
   }
 }

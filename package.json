@@ -12,6 +12,7 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
+    "prepare": "npm run build:shared && npm run build:backend",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "tsc-watch -p frontend/tsconfig.json --onSuccess \"node dist/frontend/src/index.js\"",
     "dev:backend": "tsc-watch -p backend/tsconfig.json --onSuccess \"node dist/backend/src/index.js\"",
@@ -46,6 +47,7 @@
     "@commitlint/config-conventional": "^18.4.3",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.1",
+    "@types/testing-library__jest-dom": "^5.14.9",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "commitizen": "^4.3.0",
