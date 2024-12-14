@@ -1,7 +1,10 @@
 import { config } from 'dotenv';
+import { resolve } from 'path';
 
-// Load environment variables and get the parsed env object
-const { parsed: dotenvConfig = {} } = config();
+// Load environment variables from backend/.env
+const { parsed: dotenvConfig = {} } = config({
+  path: resolve(__dirname, '../.env'),
+});
 
 type EnvKey =
   | 'NODE_ENV'

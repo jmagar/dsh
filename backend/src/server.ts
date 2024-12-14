@@ -41,12 +41,19 @@ type SocketIOServer = SocketServer<
   };
 };
 
-export function createServer(): ReturnType<typeof createHttpServer> {
+export function createServer(): express.Application {
   const app = express();
 
   // Security middleware
   app.use(helmet());
-  app.use(cors());
+  app.use(
+    cors({
+      origin: config.server.frontendUrl,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
+    })
+  );
   app.use(
     rateLimit({
       windowMs: config.rateLimit.windowMs,
@@ -76,14 +83,18 @@ export function createServer(): ReturnType<typeof createHttpServer> {
     cors: {
       origin: config.server.frontendUrl,
       methods: ['GET', 'POST'],
+      credentials: true,
     },
   }) as SocketIOServer;
 
   const agentMonitor = AgentMonitor.getInstance(db, redis);
 
   // Add routes
-  app.use('/health', setupHealthRoutes(db, redis));
-  app.use('/agent', setupAgentRoutes(io, db, redis, agentMonitor));
+  const healthRoutes = setupHealthRoutes(db, redis);
+  const agentRoutes = setupAgentRoutes(io, db, redis, agentMonitor);
+
+  app.use('/health', healthRoutes);
+  app.use('/agent', agentRoutes);
 
   // Socket authentication middleware (for non-agent connections)
   io.of('/').use((socket, next) => {
@@ -132,5 +143,5 @@ export function createServer(): ReturnType<typeof createHttpServer> {
     });
   });
 
-  return server;
+  return app;
 }

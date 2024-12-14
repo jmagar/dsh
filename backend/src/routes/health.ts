@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
+import { Pool } from 'pg';
 
-import { DatabaseClient } from '../utils/db';
 import { logger } from '../utils/logger';
 import { RedisClient } from '../utils/redis';
 
@@ -13,10 +13,14 @@ interface HealthStatus {
   };
 }
 
-export function setupHealthRoutes(db: DatabaseClient, redis: RedisClient): Router {
+const pool = new Pool({
+  connectionString: 'postgres://postgres:postgres@127.0.0.1:5432/dsh',
+});
+
+export function setupHealthRoutes(_db: any, redis: RedisClient): Router {
   const router = Router();
 
-  router.get('/health', (_req: Request, res: Response) => {
+  router.get('/', (_req: Request, res: Response) => {
     void (async () => {
       try {
         const status: HealthStatus = {
@@ -29,7 +33,12 @@ export function setupHealthRoutes(db: DatabaseClient, redis: RedisClient): Route
 
         const databaseCheck = async (): Promise<void> => {
           try {
-            await db.$queryRaw`SELECT 1`;
+            const client = await pool.connect();
+            try {
+              await client.query('SELECT 1');
+            } finally {
+              client.release();
+            }
           } catch (error) {
             const errorObj =
               error instanceof Error ? error : new Error('Database connection failed');

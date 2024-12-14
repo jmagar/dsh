@@ -1,27 +1,30 @@
+const { FlatCompat } = require('@eslint/eslintrc');
+const path = require('path');
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
 module.exports = {
-  extends: [
-    '../.eslintrc.js',
-    'plugin:react/recommended',
-    'plugin:react-hooks/recommended'
-  ],
+  root: true,
+  extends: ['../.eslintrc.js', 'plugin:react/recommended', 'plugin:react-hooks/recommended'],
   plugins: ['react', 'react-hooks'],
   env: {
-    browser: true
+    browser: true,
   },
   parserOptions: {
     ecmaFeatures: {
-      jsx: true
-    }
+      jsx: true,
+    },
   },
   settings: {
     react: {
-      version: 'detect'
-    }
+      version: 'detect',
+    },
   },
   rules: {
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
     'react-hooks/rules-of-hooks': 'error',
-    'react-hooks/exhaustive-deps': 'warn'
-  }
-} 
+    'react-hooks/exhaustive-deps': 'warn',
+  },
+};

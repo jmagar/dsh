@@ -14,8 +14,8 @@
   "scripts": {
     "prepare": "npm run build:shared && npm run build:backend",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
-    "dev:frontend": "tsc-watch -p frontend/tsconfig.json --onSuccess \"node dist/frontend/src/index.js\"",
-    "dev:backend": "tsc-watch -p backend/tsconfig.json --onSuccess \"node dist/backend/src/index.js\"",
+    "dev:frontend": "npm run start -w frontend",
+    "dev:backend": "npm run dev -w backend",
     "build": "npm run build:shared && npm run build:frontend && npm run build:backend",
     "build:frontend": "npm run build -w frontend",
     "build:backend": "npm run build -w backend",

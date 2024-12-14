@@ -6,7 +6,7 @@
     "rootDir": "src",
     "baseUrl": "src",
     "declaration": true,
-    "module": "ES2020",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "paths": {
       "*": ["./*"]

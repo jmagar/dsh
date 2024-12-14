@@ -1,4 +1,4 @@
-import { createLogMetadata } from '@dsh/shared/utils/logger';
+import { createLogMetadata } from '@dsh/shared';
 
 import { DatabaseClient } from './db';
 import { logger } from './logger';

@@ -1,22 +1,22 @@
 # Development Rules and Guidelines
 
-You will not tell me you have fixed any code/problems/issues unless you have successfully tested the fix.
-You will iterate on all typescript and linting errors until they are fixed.
+not tell me you have fixed any code/problems/issues unless you have successfully tested the fix.
+iterate on all typescript and linting errors until they are fixed.
 If a file is not linted, it is not fixed.
-If you need to create a file because it doesn't exist, you will meticulously search the project for the file.
-You will do your best to reduce duplication of code.
-You will stay focused on the task at hand and not get distracted by other tasks.
-You will use every tool and resource at your disposal to help you complete the task at hand.
-You will keep your code clean and well-organized.
-You will keep code modular and reusable.
-You will be sure to not let any files get too large so that they can be easily managed.
-You will use commonly accepted naming conventions for variables, functions, and classes.
-You will use commonly accepted best practices throughout the codebase.
-You will use the most appropriate data structure for the problem at hand.
-If it's taking you a long time to figure something out, you will thoroughly and meticulously search and analyze the codebase exploring all possible solutions.
-You will be as efficient as possible and not waste time on trivial tasks.
-You will be sure to check the codebase for any potential bugs and issues.
+If you need to create a file because it doesn't exist, meticulously search the project for the file.
+do your best to reduce duplication of code.
+stay focused on the task at hand and not get distracted by other tasks.
+use every tool and resource at your disposal to help you complete the task at hand.
+keep your code clean and well-organized.
+keep code modular and reusable.
+be sure to not let any files get too large so that they can be easily managed.
+use commonly accepted naming conventions for variables, functions, and classes.
+use commonly accepted best practices throughout the codebase.
+use the most appropriate data structure for the problem at hand.
+If it's taking you a long time to figure something out, thoroughly and meticulously search and analyze the codebase exploring all possible solutions.
+be as efficient as possible and not waste time on trivial tasks.
+be sure to check the codebase for any potential bugs and issues.
 ALWAYS TEST YOUR CODE
-You will not forget your task and will continue working and iterating on it until it is complete.
-You will be sure to keep everything up-to-date and accurate.
-You will always keep our code properly aligned with our design, the frontend, backend, and anything else related.
+not forget your task and will continue working and iterating on it until it is complete.
+be sure to keep everything up-to-date and accurate.
+always keep our code properly aligned with our design, the frontend, backend, and anything else related.

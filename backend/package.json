@@ -5,6 +5,7 @@
   "dependencies": {
     "@dsh/shared": "1.0.0",
     "@prisma/client": "^5.9.1",
+    "@types/ws": "^8.5.13",
     "compression": "^1.7.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -19,6 +20,7 @@
     "socket.io": "^4.7.4",
     "systeminformation": "^5.21.22",
     "winston": "^3.11.0",
+    "ws": "^8.18.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -40,9 +42,9 @@
     "typescript": "^5.2.2"
   },
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "start": "node dist/src/server.js",
+    "start": "node dist/src/index.js",
     "test": "jest",
     "lint": "eslint src --ext .ts --cache",
     "lint:fix": "eslint src --ext .ts --fix --cache",

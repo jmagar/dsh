@@ -1,18 +1,15 @@
-import { VERSION } from '@dsh/shared';
-import express from 'express';
-
+import { createServer } from './server';
 import { config } from './config';
+import { logger } from './utils/logger';
 
-const app = express();
+const server = createServer();
 
-app.get('/', (_req, res) => {
-  res.json({
-    name: 'DSH API',
-    version: VERSION,
-    status: 'running'
+// Start the server
+server.listen(config.server.port, () => {
+  logger.info(`Server running on port ${config.server.port}`, {
+    component: 'server',
+    metrics: {
+      port: config.server.port,
+    },
   });
-});
-
-app.listen(config.server.port, () => {
-  console.info(`Server running on port ${config.server.port}`);
 });

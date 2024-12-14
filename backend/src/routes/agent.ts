@@ -1,193 +1,131 @@
-import { Prisma } from '@prisma/client';
 import { Router } from 'express';
-import { Server as SocketIOServer, Socket } from 'socket.io';
-
-import { AgentMonitor } from '../utils/agent';
+import { Server as SocketServer } from 'socket.io';
 import { DatabaseClient } from '../utils/db';
-import { logger } from '../utils/logger';
 import { RedisClient } from '../utils/redis';
+import { AgentMonitor } from '../utils/agent';
+import { logger } from '../utils/logger';
+import { WebSocket } from 'ws';
 
-interface AgentData {
-  cpu?: {
-    usage: number;
-  };
-  memory?: {
-    used: number;
-    total: number;
-  };
-  os?: {
+interface SystemMetrics {
+  hostname: string;
+  ipAddress: string;
+  cpuUsage: number;
+  memoryUsage: number;
+  osInfo: {
     platform: string;
-    release: string;
+    os: string;
+    arch: string;
   };
-  timestamp?: number;
-}
-
-interface MetricsData extends AgentData {
-  timestamp: number;
+  timestamp: string;
 }
 
 export function setupAgentRoutes(
-  io: SocketIOServer,
+  io: SocketServer,
   db: DatabaseClient,
   redis: RedisClient,
   agentMonitor: AgentMonitor
 ): Router {
   const router = Router();
-  const namespace = io.of('/agent');
+  const wss = new WebSocket.Server({ noServer: true });
 
-  namespace.on('connection', async (socket: Socket): Promise<void> => {
-    const { hostname, ipAddress } = socket.handshake.query;
-
-    if (typeof hostname !== 'string' || hostname.length === 0) {
-      socket.disconnect();
-      return;
+  // Handle WebSocket upgrade
+  router.get('/ws', (req, res) => {
+    if (!req.headers.upgrade || req.headers.upgrade.toLowerCase() !== 'websocket') {
+      return res.status(400).json({ error: 'Expected WebSocket connection' });
     }
 
-    const ttl = 300; // 5 minutes in seconds
-    const safeHostname = hostname;
-    const safeIpAddress = typeof ipAddress === 'string' ? ipAddress : '';
+    // Pass request handling to WebSocket server
+    wss.handleUpgrade(req, req.socket, Buffer.alloc(0), ws => {
+      wss.emit('connection', ws, req);
+    });
+  });
 
-    try {
-      // Find or create server in database
-      const server = await db.server.upsert({
-        where: {
-          hostname_ipAddress: {
-            hostname: safeHostname,
-            ipAddress: safeIpAddress,
+  // Handle WebSocket connections
+  wss.on('connection', async ws => {
+    logger.info('Agent connected', {
+      component: 'agent',
+      metrics: {
+        connections: wss.clients.size,
+      },
+    });
+
+    // Handle incoming messages
+    ws.on('message', async data => {
+      try {
+        const metrics = JSON.parse(data.toString()) as SystemMetrics;
+
+        // Find or create server
+        const server = await db.server.upsert({
+          where: {
+            hostname_ipAddress: {
+              hostname: metrics.hostname,
+              ipAddress: metrics.ipAddress || '',
+            },
           },
-        },
-        create: {
-          name: safeHostname,
-          hostname: safeHostname,
-          ipAddress: safeIpAddress,
-          status: 'online',
-        },
-        update: {
-          status: 'online',
-          lastSeen: new Date(),
-        },
-      });
-
-      // Cache server info in Redis
-      await redis.set(`server:${safeHostname}`, JSON.stringify(server), 'EX', ttl);
-
-      // Handle metrics from agent
-      socket.on('metrics', async (data: AgentData): Promise<void> => {
-        const startTime = Date.now();
-        try {
-          const metricsData: MetricsData = {
-            ...data,
-            timestamp: startTime,
-          };
-
-          await agentMonitor.handleMetrics(safeHostname, metricsData);
-
-          // Update resource usage in database
-          const updateData: Prisma.ServerUpdateInput = {
+          create: {
+            name: metrics.hostname,
+            hostname: metrics.hostname,
+            ipAddress: metrics.ipAddress,
+            status: 'online',
+            osInfo: metrics.osInfo,
+          },
+          update: {
             lastSeen: new Date(),
-          };
+            status: 'online',
+            osInfo: metrics.osInfo,
+          },
+        });
 
-          if (data.cpu) {
-            updateData.cpuInfo = {
-              set: { usage: data.cpu.usage },
-            };
-          }
-          if (data.memory) {
-            updateData.memoryInfo = {
-              set: {
-                used: data.memory.used,
-                total: data.memory.total,
-              },
-            };
-          }
-          if (data.os) {
-            updateData.osInfo = {
-              set: {
-                platform: data.os.platform,
-                release: data.os.release,
-              },
-            };
-          }
+        // Create CPU metric
+        await db.metric.create({
+          data: {
+            type: 'cpu',
+            value: Number(metrics.cpuUsage),
+            serverId: server.id,
+          },
+        });
 
-          await db.server.update({
-            where: {
-              hostname_ipAddress: {
-                hostname: safeHostname,
-                ipAddress: safeIpAddress,
-              },
-            },
-            data: updateData,
-          });
+        // Create memory metric
+        await db.metric.create({
+          data: {
+            type: 'memory',
+            value: Number(metrics.memoryUsage),
+            serverId: server.id,
+          },
+        });
 
-          logger.info('Processed agent metrics', {
-            component: 'agent',
-            metrics: {
-              cpu_usage: data.cpu?.usage ?? 0,
-              memory_used: data.memory?.used ?? 0,
-              memory_total: data.memory?.total ?? 0,
-              processing_time: Date.now() - startTime,
-            },
-          });
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          logger.error('Failed to process agent metrics', {
-            component: 'agent',
-            error: err,
-            metrics: {
-              processing_time: Date.now() - startTime,
-            },
-          });
-        }
-      });
+        // Emit metrics to connected clients
+        io.emit('agent:metrics', {
+          serverId: server.id,
+          ...metrics,
+        });
 
-      // Handle disconnect
-      socket.on('disconnect', async (): Promise<void> => {
-        const startTime = Date.now();
-        try {
-          await db.server.update({
-            where: {
-              hostname_ipAddress: {
-                hostname: safeHostname,
-                ipAddress: safeIpAddress,
-              },
-            },
-            data: {
-              status: 'offline',
-              lastSeen: new Date(),
-            },
-          });
+        logger.info('Received metrics from agent', {
+          component: 'agent',
+          metrics: {
+            hostname: metrics.hostname,
+            cpuUsage: metrics.cpuUsage,
+            memoryUsage: metrics.memoryUsage,
+          },
+        });
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error processing metrics');
+        logger.error('Error processing agent metrics', {
+          component: 'agent',
+          error,
+        });
+      }
+    });
 
-          await redis.del(`server:${safeHostname}`);
-
-          logger.info('Agent disconnected', {
-            component: 'agent',
-            metrics: {
-              processing_time: Date.now() - startTime,
-            },
-          });
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          logger.error('Failed to process agent disconnect', {
-            component: 'agent',
-            error: err,
-            metrics: {
-              processing_time: Date.now() - startTime,
-            },
-          });
-        }
-      });
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      const startTime = Date.now();
-      logger.error('Error in socket connection', {
+    // Handle disconnection
+    ws.on('close', () => {
+      logger.info('Agent disconnected', {
         component: 'agent',
-        error: err,
         metrics: {
-          processing_time: Date.now() - startTime,
+          connections: wss.clients.size,
         },
       });
-      socket.disconnect();
-    }
+    });
   });
 
   return router;

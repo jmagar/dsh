@@ -30,6 +30,7 @@
     "esModuleInterop": true,
     "types": ["node", "jest"],
     "paths": {
+      "@dsh/shared": ["./shared/src"],
       "@dsh/shared/*": ["./shared/src/*"]
     }
   },

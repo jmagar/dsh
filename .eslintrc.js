@@ -11,6 +11,7 @@ module.exports = {
     'plugin:import/typescript',
     'prettier',
   ],
+  ignorePatterns: ['**/dist/**', '**/build/**', '**/node_modules/**'],
   env: {
     node: true,
     es6: true,
@@ -20,6 +21,12 @@ module.exports = {
     sourceType: 'module',
     project: ['./tsconfig.json', './*/tsconfig.json'],
     tsconfigRootDir: __dirname,
+    schema: {
+      // Use newer JSON schema version
+      jsonSchema: {
+        draft: '2020-12',
+      },
+    },
   },
   settings: {
     'import/resolver': {
