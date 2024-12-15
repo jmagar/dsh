@@ -1,122 +1,144 @@
 package main
 
 import (
-	"flag"
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"log"
-	"net/url"
+	"net/http"
 	"os"
-	"os/signal"
-	"runtime"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type SystemMetrics struct {
-	Hostname    string    `json:"hostname"`
-	IPAddress   string    `json:"ipAddress"`
-	CPUUsage    float64   `json:"cpuUsage"`
-	MemoryUsage float64   `json:"memoryUsage"`
-	OSInfo      OSInfo    `json:"osInfo"`
-	Timestamp   time.Time `json:"timestamp"`
+	Metrics struct {
+		CPUUsage    float64 `json:"cpuUsage"`
+		MemoryUsage float64 `json:"memoryUsage"`
+		DiskUsage   float64 `json:"diskUsage"`
+	} `json:"metrics"`
+	Timestamp string `json:"timestamp"`
 }
 
-type OSInfo struct {
-	Platform string `json:"platform"`
-	OS       string `json:"os"`
-	Arch     string `json:"arch"`
+type RegistrationRequest struct {
+	Hostname string `json:"hostname"`
+	OSInfo   struct {
+		Platform string `json:"platform"`
+		OS       string `json:"os"`
+		Arch     string `json:"arch"`
+		Release  string `json:"release,omitempty"`
+	} `json:"osInfo"`
 }
+
+var (
+	agentID string
+	backendURL = "http://localhost:3001"
+)
 
 func main() {
-	host := flag.String("host", "localhost", "DSH server host")
-	port := flag.Int("port", 3001, "DSH server port")
-	flag.Parse()
-
-	serverAddr := fmt.Sprintf("%s:%d", *host, *port)
-
-	// Create WebSocket URL
-	u := url.URL{Scheme: "ws", Host: serverAddr, Path: "/ws/agent"}
-	log.Printf("Connecting to %s", u.String())
-
-	// Connect to WebSocket server
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	defer c.Close()
-
-	// Handle interrupt signal
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
-
-	// Create ticker for sending metrics
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			metrics, err := collectMetrics()
-			if err != nil {
-				log.Printf("Error collecting metrics: %v", err)
-				continue
-			}
-
-			err = c.WriteJSON(metrics)
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
-
-		case <-interrupt:
-			log.Println("Received interrupt signal, closing connection...")
-			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
-			return
-		}
-	}
-}
-
-func collectMetrics() (*SystemMetrics, error) {
+	// Get system information for registration
 	hostname, err := os.Hostname()
 	if err != nil {
-		return nil, fmt.Errorf("error getting hostname: %v", err)
-	}
-
-	v, err := mem.VirtualMemory()
-	if err != nil {
-		return nil, fmt.Errorf("error getting memory info: %v", err)
-	}
-
-	cpuPercent, err := cpu.Percent(time.Second, false)
-	if err != nil {
-		return nil, fmt.Errorf("error getting CPU info: %v", err)
+		fmt.Printf("Error getting hostname: %v\n", err)
+		os.Exit(1)
 	}
 
 	hostInfo, err := host.Info()
 	if err != nil {
-		return nil, fmt.Errorf("error getting host info: %v", err)
+		fmt.Printf("Error getting host info: %v\n", err)
+		os.Exit(1)
 	}
 
-	metrics := &SystemMetrics{
-		Hostname:    hostname,
-		IPAddress:   "127.0.0.1", // You might want to implement proper IP detection
-		CPUUsage:    cpuPercent[0],
-		MemoryUsage: v.UsedPercent,
-		OSInfo: OSInfo{
-			Platform: hostInfo.Platform,
-			OS:       runtime.GOOS,
-			Arch:     runtime.GOARCH,
-		},
-		Timestamp: time.Now(),
+	// Register with backend
+	regReq := RegistrationRequest{
+		Hostname: hostname,
 	}
+	regReq.OSInfo.Platform = hostInfo.Platform
+	regReq.OSInfo.OS = hostInfo.OS
+	regReq.OSInfo.Arch = hostInfo.KernelArch
+	regReq.OSInfo.Release = hostInfo.PlatformVersion
+
+	regBody, err := json.Marshal(regReq)
+	if err != nil {
+		fmt.Printf("Error marshaling registration request: %v\n", err)
+		os.Exit(1)
+	}
+
+	resp, err := http.Post(backendURL+"/api/agents/register", "application/json", bytes.NewBuffer(regBody))
+	if err != nil {
+		fmt.Printf("Error registering with backend: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Registration failed with status: %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+
+	var regResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&regResp); err != nil {
+		fmt.Printf("Error decoding registration response: %v\n", err)
+		os.Exit(1)
+	}
+
+	agentID = regResp.ID
+	fmt.Printf("Registered with backend, agent ID: %s\n", agentID)
+
+	// Start metrics collection loop
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		metrics, err := collectMetrics()
+		if err != nil {
+			fmt.Printf("Error collecting metrics: %v\n", err)
+			continue
+		}
+
+		// Send metrics to backend
+		metricsBody, err := json.Marshal(metrics)
+		if err != nil {
+			fmt.Printf("Error marshaling metrics: %v\n", err)
+			continue
+		}
+
+		resp, err := http.Post(fmt.Sprintf("%s/api/agents/%s/metrics", backendURL, agentID), "application/json", bytes.NewBuffer(metricsBody))
+		if err != nil {
+			fmt.Printf("Error sending metrics: %v\n", err)
+			continue
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("Metrics update failed with status: %d\n", resp.StatusCode)
+			continue
+		}
+
+		fmt.Printf("Sent metrics: CPU: %.2f%%, Memory: %.2f%%\n", metrics.Metrics.CPUUsage, metrics.Metrics.MemoryUsage)
+	}
+}
+
+func collectMetrics() (*SystemMetrics, error) {
+	cpuPercent, err := cpu.Percent(time.Second, false)
+	if err != nil {
+		return nil, fmt.Errorf("error getting CPU usage: %v", err)
+	}
+
+	memInfo, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, fmt.Errorf("error getting memory info: %v", err)
+	}
+
+	metrics := &SystemMetrics{}
+	metrics.Metrics.CPUUsage = cpuPercent[0]
+	metrics.Metrics.MemoryUsage = memInfo.UsedPercent
+	metrics.Metrics.DiskUsage = 0 // TODO: Add disk usage
+	metrics.Timestamp = time.Now().UTC().Format(time.RFC3339)
 
 	return metrics, nil
 }

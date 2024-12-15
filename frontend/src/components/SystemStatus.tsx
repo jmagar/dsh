@@ -1,3 +1,4 @@
+// External dependencies
 import { AgentStatus } from '@dsh/shared/types/agent';
 import { SystemMetrics } from '@dsh/shared/types/metrics';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -14,18 +15,20 @@ import {
   Tooltip as _Tooltip, 
   Typography 
 } from '@mui/material';
-import axios from 'axios';
 import React, { useCallback, useEffect, useState } from 'react';
 
-interface SystemStatus {
+// Internal dependencies
+import { apiClient } from '../services/api';
+
+interface SystemStatusData {
   status: 'healthy' | 'unhealthy';
   details?: {
     database?: boolean;
     redis?: boolean;
     error?: string;
   };
-  agents?: AgentStatus[];
-  agentMetrics?: Record<string, SystemMetrics>;
+  agents: AgentStatus[];
+  agentMetrics: Record<string, SystemMetrics>;
 }
 
 interface ServiceStatusCardProps {
@@ -35,7 +38,7 @@ interface ServiceStatusCardProps {
 }
 
 interface AgentStatusCardProps {
-  agent: AgentStatus;
+  agent: AgentStatus & { osInfo: { platform: string; os: string; arch: string; release?: string } };
   metrics: SystemMetrics | null;
 }
 
@@ -50,18 +53,23 @@ function getErrorMessage(error: string | null | undefined): string | null {
 
 const ServiceStatusCard: React.FC<ServiceStatusCardProps> = ({ name, isHealthy, error }) => {
   const errorMessage = getErrorMessage(error);
-  
+  const hasError = errorMessage !== null && errorMessage !== '';
+
   return (
     <Card sx={{ mb: 2 }}>
       <CardContent>
-        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-          {isHealthy ? <CheckCircleIcon color="success" /> : <ErrorIcon color="error" />}
+        <Stack direction="row" spacing={1} alignItems="center">
+          {isHealthy ? (
+            <CheckCircleIcon color="success" />
+          ) : (
+            <ErrorIcon color="error" />
+          )}
           <Typography variant="h6" component="div">
             {name}
           </Typography>
         </Stack>
-        {errorMessage !== null && (
-          <Typography color="error" variant="body2">
+        {hasError && (
+          <Typography variant="body2" color="error">
             {errorMessage}
           </Typography>
         )}
@@ -89,8 +97,11 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => 
     );
   }
 
-  const cpuUsage = metrics.cpu?.total ?? 0;
-  const memoryUsage = metrics.memory?.usage ?? 0;
+  const { cpuUsage, memoryUsage, diskUsage } = metrics.metrics || { 
+    cpuUsage: 0, 
+    memoryUsage: 0, 
+    diskUsage: 0 
+  };
 
   return (
     <Card sx={{ mb: 2 }}>
@@ -103,10 +114,19 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => 
         </Stack>
         <Box>
           <Typography variant="body2">
-            CPU: {(cpuUsage * 100).toFixed(2)}%
+            CPU: {cpuUsage.toFixed(2)}%
           </Typography>
           <Typography variant="body2">
-            Memory: {(memoryUsage * 100).toFixed(2)}%
+            Memory: {memoryUsage.toFixed(2)}%
+          </Typography>
+          <Typography variant="body2">
+            Disk: {diskUsage.toFixed(2)}%
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            OS: {agent.osInfo.os} ({agent.osInfo.platform} {agent.osInfo.arch})
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Last seen: {new Date(agent.lastSeen).toLocaleString()}
           </Typography>
         </Box>
       </CardContent>
@@ -115,84 +135,81 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => 
 };
 
 const SystemStatus: React.FC = () => {
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [systemStatus, setSystemStatus] = useState<SystemStatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSystemStatus = useCallback(async () => {
     try {
-      setLoading(true);
-      const response = await axios.get<SystemStatus>('/api/health');
+      const response = await apiClient.get<SystemStatusData>('/health');
       setSystemStatus(response.data);
       setError(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch system status';
-      setError(errorMessage);
-      setSystemStatus(null);
-    } finally {
-      setLoading(false);
+      setError('Failed to fetch system status');
+      console.error('Error fetching system status:', err);
     }
   }, []);
 
   useEffect(() => {
-    const fetchData = async (): Promise<void> => {
-      await fetchSystemStatus().catch(() => {
-        // Error already handled in fetchSystemStatus
-      });
-    };
-
-    void fetchData();
-
-    const intervalId = setInterval(() => {
-      void fetchData();
-    }, 30000);
-
-    return () => clearInterval(intervalId);
+    void fetchSystemStatus();
+    const interval = setInterval(() => void fetchSystemStatus(), 5000);
+    return () => clearInterval(interval);
   }, [fetchSystemStatus]);
 
-  if (loading) {
+  const hasError = error !== null && error !== '';
+
+  if (hasError) {
+    return (
+      <Alert severity="error" sx={{ mb: 2 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  if (!systemStatus) {
     return <CircularProgress />;
   }
 
-  const errorMessage = getErrorMessage(error);
-  if (errorMessage !== null) {
-    return <Alert severity="error">{errorMessage}</Alert>;
-  }
-
-  const isDatabaseHealthy = systemStatus?.details?.database ?? false;
-  const isRedisHealthy = systemStatus?.details?.redis ?? false;
-
   return (
     <Box>
+      <Typography variant="h4" gutterBottom>
+        System Status
+      </Typography>
+
       <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
-          <Typography variant="h5" gutterBottom>
-            System Services
-          </Typography>
-          <ServiceStatusCard 
-            name="Database" 
-            isHealthy={isDatabaseHealthy} 
-            error={systemStatus?.details?.error} 
-          />
-          <ServiceStatusCard 
-            name="Redis" 
-            isHealthy={isRedisHealthy} 
-            error={systemStatus?.details?.error} 
+          <ServiceStatusCard
+            name="Database"
+            isHealthy={systemStatus.details?.database ?? false}
+            error={systemStatus.details?.error}
           />
         </Grid>
+
         <Grid item xs={12} md={6}>
-          <Typography variant="h5" gutterBottom>
-            Agents
-          </Typography>
-          {systemStatus?.agents?.map((agent) => (
-            <AgentStatusCard 
-              key={agent.id} 
-              agent={agent} 
-              metrics={systemStatus.agentMetrics?.[agent.id] ?? null} 
-            />
-          ))}
+          <ServiceStatusCard
+            name="Redis"
+            isHealthy={systemStatus.details?.redis ?? false}
+            error={systemStatus.details?.error}
+          />
         </Grid>
       </Grid>
+
+      <Typography variant="h5" sx={{ mt: 4, mb: 2 }}>
+        Connected Agents
+      </Typography>
+
+      {systemStatus.agents.map((agent) => (
+        <AgentStatusCard
+          key={agent.id}
+          agent={agent as AgentStatusCardProps['agent']}
+          metrics={systemStatus.agentMetrics[agent.id] ?? null}
+        />
+      ))}
+
+      {systemStatus.agents.length === 0 && (
+        <Typography variant="body1" color="text.secondary">
+          No agents connected
+        </Typography>
+      )}
     </Box>
   );
 };

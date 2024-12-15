@@ -1,3 +1,8 @@
+import { config as dotenvConfig } from 'dotenv';
+
+// Load environment variables first
+dotenvConfig();
+
 import { config } from './config';
 import { createServer } from './server';
 import { initializeDb } from './utils/db';
@@ -22,12 +27,12 @@ async function startServer(): Promise<void> {
         },
       });
     });
-  } catch (error) {
-    logger.error('Failed to start server', {
+  } catch (error: unknown) {
+    logger.error('Error starting server', {
       component: 'server',
-      error: error instanceof Error ? error : new Error(String(error))
+      error: error instanceof Error ? error : new Error(String(error)),
     });
-    process.exit(1);
+    throw error;
   }
 }
 

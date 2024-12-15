@@ -1,13 +1,18 @@
 export interface SystemMetrics {
-  timestamp: Date;
+  metrics: {
+    cpuUsage: number;
+    memoryUsage: number;
+    diskUsage: number;
+    cpu?: CPUMetrics;
+    memory?: MemoryMetrics;
+    storage?: StorageMetrics;
+    network?: NetworkMetrics;
+    loadAverage?: [number, number, number];
+    uptimeSeconds?: number;
+  };
+  timestamp: string;
   hostname?: string;
   ipAddress?: string;
-  cpu: CPUMetrics;
-  memory: MemoryMetrics;
-  storage: StorageMetrics;
-  network: NetworkMetrics;
-  loadAverage: [number, number, number];
-  uptimeSeconds: number;
   osInfo?: OSInfo;
 }
 
@@ -49,7 +54,8 @@ export interface IOMetrics {
   writes: number;
   readBytes: number;
   writeBytes: number;
-  ioTime?: number;
+  readTime: number;
+  writeTime: number;
 }
 
 export interface NetworkMetrics {
@@ -71,7 +77,7 @@ export interface NetworkMetrics {
 }
 
 export interface MetricDataPoint {
-  timestamp: Date;
+  timestamp: string;
   value: number;
   metadata?: Record<string, unknown>;
 }
@@ -79,9 +85,9 @@ export interface MetricDataPoint {
 export interface MetricQuery {
   serverId: string;
   metricType: string;
-  startTime: Date;
-  endTime: Date;
-  interval?: string; // e.g., '1m', '5m', '1h'
+  startTime: string;
+  endTime: string;
+  interval?: string;
   aggregation?: 'avg' | 'max' | 'min' | 'sum';
 }
 
@@ -89,4 +95,5 @@ export interface OSInfo {
   platform: string;
   os: string;
   arch: string;
+  release?: string;
 }

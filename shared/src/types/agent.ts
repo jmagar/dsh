@@ -29,21 +29,26 @@ export interface Memory {
 
 export interface AgentStatus {
   id: string;
+  hostname: string;
   connected: boolean;
-  lastSeen: Date;
-  version: string;
-  systemInfo?: SystemInfo;
+  lastSeen: string;
+  osInfo: {
+    platform: string;
+    os: string;
+    arch: string;
+    release?: string;
+  };
 }
 
 export interface AgentCommand {
   type: 'COLLECT_METRICS' | 'UPDATE_CONFIG' | 'RESTART' | 'SHUTDOWN';
   payload?: unknown;
-  timestamp: Date;
+  timestamp: string;
 }
 
 export interface AgentResponse {
   success: boolean;
   error?: string;
   data?: unknown;
-  timestamp: Date;
-} 
+  timestamp: string;
+}

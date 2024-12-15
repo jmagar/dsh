@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createServer as createHttpServer } from 'http';
 
 import compression from 'compression';
+import cors from 'cors';
 import express, { json, urlencoded } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
@@ -45,7 +46,17 @@ export async function createServer(): Promise<express.Application> {
   const app = express();
 
   // Security middleware
-  app.use(helmet());
+  app.use(helmet({
+    cors: {
+      origin: config.server.frontendUrl
+    }
+  }));
+
+  // CORS middleware
+  app.use(cors({
+    origin: config.server.frontendUrl,
+    credentials: true
+  }));
 
   // Compression middleware
   app.use(compression());
@@ -123,7 +134,7 @@ export async function createServer(): Promise<express.Application> {
       }
 
       try {
-        const decoded = verify(auth.token, config.jwt.secret) as SocketData['user'];
+        const decoded = verify(auth.token, config.auth.jwtSecret) as SocketData['user'];
         socket.data = { user: decoded };
         next();
       } catch (error) {

@@ -29,7 +29,7 @@ export class WebSocketTest {
 
   private initializeSocket(): void {
     try {
-      const baseSocketUrl = process.env.REACT_APP_WEBSOCKET_URL ?? '';
+      const baseSocketUrl = process.env.REACT_APP_WS_URL ?? '';
       logger.debug('WebSocket Initialization', 
         createLogMetadata('websocket-test')
       );

@@ -1,44 +1,54 @@
-import { config as dotenvConfig } from 'dotenv';
+import 'dotenv/config';
 import { z } from 'zod';
-
-import { env } from './config/env';
 
 // Load environment variables
 dotenvConfig();
 
+// Define environment schema for validation
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default('3000'),
-  FRONTEND_URL: z.string().default('http://localhost:3001'),
-  JWT_SECRET: z.string(),
-  REDIS_URL: z.string().default('redis://localhost:6379'),
-  DATABASE_URL: z.string(),
-  RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
+  PORT: z.coerce.number().min(1).max(65535).default(3000),
+  FRONTEND_URL: z.string().url().default('http://localhost:3001'),
+  JWT_SECRET: z.string().min(32),
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  DATABASE_URL: z.string().url(),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(900000),
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().positive().default(100),
 });
 
-const validatedEnv = envSchema.parse(env);
+// Validate environment variables at startup
+const env = envSchema.parse({
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+  JWT_SECRET: process.env.JWT_SECRET,
+  REDIS_URL: process.env.REDIS_URL,
+  DATABASE_URL: process.env.DATABASE_URL,
+  RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS,
+});
 
+// Export validated config object
 export const config = {
-  env: validatedEnv.NODE_ENV,
-  isProduction: validatedEnv.NODE_ENV === 'production',
-  isDevelopment: validatedEnv.NODE_ENV === 'development',
-  isTest: validatedEnv.NODE_ENV === 'test',
+  env: env.NODE_ENV,
   server: {
-    port: validatedEnv.PORT,
-    frontendUrl: validatedEnv.FRONTEND_URL,
+    port: env.PORT,
+    frontendUrl: env.FRONTEND_URL,
   },
-  jwt: {
-    secret: validatedEnv.JWT_SECRET,
+  auth: {
+    jwtSecret: env.JWT_SECRET,
   },
   redis: {
-    url: validatedEnv.REDIS_URL,
+    url: env.REDIS_URL,
   },
   database: {
-    url: validatedEnv.DATABASE_URL,
+    url: env.DATABASE_URL,
   },
   rateLimit: {
-    windowMs: validatedEnv.RATE_LIMIT_WINDOW_MS,
-    max: validatedEnv.RATE_LIMIT_MAX_REQUESTS,
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    maxRequests: env.RATE_LIMIT_MAX_REQUESTS,
   },
 } as const;
+
+// Export type for use in other files
+export type Config = typeof config;

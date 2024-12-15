@@ -63,25 +63,6 @@ function parseOsInfo(data: unknown): OsInfo {
   };
 }
 
-// Type guard for CPU metrics
-function isCPUMetrics(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.total === 'number' &&
-    Array.isArray(value.cores)
-  );
-}
-
-// Type guard for memory metrics
-function isMemoryMetrics(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.total === 'number' &&
-    typeof value.used === 'number' &&
-    typeof value.free === 'number'
-  );
-}
-
 // Type guard for metrics data
 function isValidMetricsData(data: unknown): data is SystemMetrics {
   if (!isRecord(data)) {
@@ -89,11 +70,12 @@ function isValidMetricsData(data: unknown): data is SystemMetrics {
   }
 
   return (
-    typeof data.timestamp === 'number' &&
-    'cpu' in data &&
-    'memory' in data &&
-    isCPUMetrics(data.cpu) &&
-    isMemoryMetrics(data.memory)
+    'metrics' in data &&
+    isRecord(data.metrics) &&
+    typeof data.metrics.cpuUsage === 'number' &&
+    typeof data.metrics.memoryUsage === 'number' &&
+    typeof data.metrics.diskUsage === 'number' &&
+    typeof data.timestamp === 'string'
   );
 }
 
