@@ -22,5 +22,14 @@ module.exports = {
         'no-process-env': 'off',
       },
     },
+    {
+      files: ['tests/**/*.ts'],
+      parserOptions: {
+        project: './tsconfig.test.json',
+      },
+      rules: {
+        'no-process-env': 'off', // Allow process.env usage in test files
+      },
+    },
   ],
 };

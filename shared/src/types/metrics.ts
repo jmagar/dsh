@@ -1,11 +1,14 @@
 export interface SystemMetrics {
   timestamp: Date;
+  hostname?: string;
+  ipAddress?: string;
   cpu: CPUMetrics;
   memory: MemoryMetrics;
   storage: StorageMetrics;
   network: NetworkMetrics;
   loadAverage: [number, number, number];
   uptimeSeconds: number;
+  osInfo?: OSInfo;
 }
 
 export interface CPUMetrics {
@@ -80,4 +83,10 @@ export interface MetricQuery {
   endTime: Date;
   interval?: string; // e.g., '1m', '5m', '1h'
   aggregation?: 'avg' | 'max' | 'min' | 'sum';
-} 
+}
+
+export interface OSInfo {
+  platform: string;
+  os: string;
+  arch: string;
+}

@@ -1,4 +1,4 @@
-import { type Server } from 'http';
+import { createServer as createHttpServer, Server } from 'http';
 
 import { createServer } from '../src/server';
 import { logger } from '../src/utils/logger';
@@ -18,6 +18,16 @@ async function takeHeapSnapshot(): Promise<HeapSnapshot> {
   return snapshot;
 }
 
+function calculateGrowthRate(current: HeapSnapshot, previous: HeapSnapshot): number {
+  return (current.size - previous.size) / (current.timestamp - previous.timestamp);
+}
+
+function calculateStandardDeviation(values: number[], mean: number): number {
+  return Math.sqrt(
+    values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length
+  );
+}
+
 async function analyzeMemoryLeaks(
   server: Server,
   duration: number = 60000,
@@ -26,6 +36,7 @@ async function analyzeMemoryLeaks(
   const snapshots: HeapSnapshot[] = [];
   const startTime = Date.now();
 
+  // Collect snapshots
   while (Date.now() - startTime < duration) {
     snapshots.push(await takeHeapSnapshot());
     await new Promise(resolve => setTimeout(resolve, interval));
@@ -40,16 +51,10 @@ async function analyzeMemoryLeaks(
     return;
   }
 
-  // Calculate growth rate
-  const growthRates: number[] = [];
-  for (let i = 1; i < snapshots.length; i++) {
-    const current = snapshots[i];
-    const previous = snapshots[i - 1];
-    if (!current || !previous) continue;
-
-    const rate = (current.size - previous.size) / (current.timestamp - previous.timestamp);
-    growthRates.push(rate);
-  }
+  // Calculate growth rates using array methods instead of indexing
+  const growthRates = snapshots
+    .slice(1)
+    .map((snapshot, index) => calculateGrowthRate(snapshot, snapshots[index]));
 
   if (growthRates.length === 0) {
     logger.error('Failed to calculate growth rates', {
@@ -59,16 +64,15 @@ async function analyzeMemoryLeaks(
     return;
   }
 
+  // Calculate statistics
   const avgGrowthRate = growthRates.reduce((sum, rate) => sum + rate, 0) / growthRates.length;
-  const stdDev = Math.sqrt(
-    growthRates.reduce((sum, rate) => sum + Math.pow(rate - avgGrowthRate, 2), 0) /
-      growthRates.length
-  );
+  const stdDev = calculateStandardDeviation(growthRates, avgGrowthRate);
 
   // Check for consistent growth
   const isLeaking = avgGrowthRate > 0 && stdDev < Math.abs(avgGrowthRate);
-  const lastSnapshot = snapshots[snapshots.length - 1];
-
+  
+  // Safely get the last snapshot
+  const lastSnapshot = snapshots.slice(-1)[0];
   if (!lastSnapshot) {
     logger.error('No final snapshot available', {
       component: 'memory-test',
@@ -76,26 +80,23 @@ async function analyzeMemoryLeaks(
     return;
   }
 
+  // Log results using bound methods
+  const logMetrics = {
+    component: 'memory-test',
+    metrics: {
+      averageGrowthRate: avgGrowthRate,
+      standardDeviation: stdDev,
+      finalHeapSize: lastSnapshot.size,
+    },
+  };
+
   if (isLeaking) {
-    logger.error('Memory leak detected', {
-      component: 'memory-test',
-      metrics: {
-        averageGrowthRate: avgGrowthRate,
-        standardDeviation: stdDev,
-        finalHeapSize: lastSnapshot.size,
-      },
-    });
+    logger.error('Memory leak detected', logMetrics);
   } else {
-    logger.info('No memory leaks detected', {
-      component: 'memory-test',
-      metrics: {
-        averageGrowthRate: avgGrowthRate,
-        standardDeviation: stdDev,
-        finalHeapSize: lastSnapshot.size,
-      },
-    });
+    logger.info('No memory leaks detected', logMetrics);
   }
 
+  // Close server
   await new Promise<void>((resolve, reject) => {
     server.close(err => {
       if (err) reject(err);
@@ -105,8 +106,18 @@ async function analyzeMemoryLeaks(
 }
 
 async function main(): Promise<void> {
-  const server = await createServer();
-  await analyzeMemoryLeaks(server);
+  try {
+    const app = await createServer();
+    const server = createHttpServer(app);
+    await analyzeMemoryLeaks(server);
+  } catch (error) {
+    logger.error('Failed to run memory leak analysis', {
+      component: 'memory-test',
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+    process.exit(1);
+  }
 }
 
+// Use void operator to explicitly mark Promise as handled
 void main();

@@ -181,11 +181,10 @@ export class AgentMonitor {
 }
 
 // Create singleton instance
-async function initializeAgentMonitor() {
-  return AgentMonitor.getInstance(
-    await DatabaseClient.getInstance(),
-    await RedisClient.getInstance()
-  );
+async function initializeAgentMonitor(): Promise<AgentMonitor> {
+  const db = await DatabaseClient.getInstance();
+  const redis = RedisClient.getInstance(); // RedisClient.getInstance() returns synchronously
+  return AgentMonitor.getInstance(db, redis);
 }
 
 export const agentMonitorPromise = initializeAgentMonitor();

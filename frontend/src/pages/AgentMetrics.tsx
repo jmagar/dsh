@@ -1,30 +1,102 @@
+import { SystemMetrics } from '@dsh/shared/types/metrics';
+import { LogMetadata } from '@dsh/shared/utils/logger';
 import React, { useEffect, useState } from 'react';
 
-import { SystemMetrics } from '../shared/types';
 import { logger, createLogMetadata } from '../utils/logger';
 import { WebSocketTest } from '../utils/websocket-test';
 
+interface MetricsState {
+  data: SystemMetrics | null;
+  status: string;
+}
+
+interface OSInfo {
+  platform: string;
+  os: string;
+  arch: string;
+  release?: string;
+}
+
+// Type guard for Record<string, unknown>
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+// Type guard for OSInfo
+function isOSInfo(value: unknown): value is OSInfo {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const hasRequiredFields = 
+    typeof value.platform === 'string' &&
+    typeof value.os === 'string' &&
+    typeof value.arch === 'string';
+
+  if (!hasRequiredFields) {
+    return false;
+  }
+
+  // Check optional field
+  if ('release' in value && value.release !== undefined && typeof value.release !== 'string') {
+    return false;
+  }
+
+  return true;
+}
+
+// Helper function to safely handle nullable strings
+function getDisplayValue(value: string | null | undefined): string {
+  if (value === null || value === undefined || value.trim() === '') {
+    return 'N/A';
+  }
+  return value;
+}
+
+// Helper function to safely handle OS info properties
+function getOSInfoValue(osInfo: unknown, key: keyof OSInfo): string {
+  if (!isOSInfo(osInfo)) {
+    return 'N/A';
+  }
+  const value = osInfo[key];
+  return typeof value === 'string' ? value : 'N/A';
+}
+
+// Helper function to format percentage
+function formatPercentage(value: number | undefined): string {
+  if (typeof value !== 'number' || isNaN(value)) {
+    return 'N/A';
+  }
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 const AgentMetrics: React.FC = () => {
-  const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<string>('Connecting...');
+  const [state, setState] = useState<MetricsState>({
+    data: null,
+    status: 'Connecting...',
+  });
 
   useEffect(() => {
     const websocketTest = new WebSocketTest();
+    let isActive = true;
 
     const testWebSocketConnection = async (): Promise<() => void> => {
       try {
         await websocketTest.connect();
-        setConnectionStatus('Connected');
-        
+        if (!isActive) return () => websocketTest.disconnect();
+
+        setState(prev => ({ ...prev, status: 'Connected' }));
         websocketTest.sendTestMessage('Frontend WebSocket Test');
       } catch (error) {
-        setConnectionStatus('Connection Failed');
+        if (!isActive) return () => websocketTest.disconnect();
+
+        setState(prev => ({ ...prev, status: 'Connection Failed' }));
         const errorObj = error instanceof Error ? error : new Error(String(error));
-        logger.error('WebSocket Connection Test Failed', 
-          createLogMetadata('agent-metrics', errorObj, {
-            component: 'agent-metrics'
-          })
-        );
+        const metadata: Partial<LogMetadata> = {
+          component: 'agent-metrics',
+          error: errorObj,
+        };
+        logger.error('WebSocket Connection Test Failed', createLogMetadata('agent-metrics', errorObj, metadata));
         return () => {
           websocketTest.disconnect();
         };
@@ -33,41 +105,43 @@ const AgentMetrics: React.FC = () => {
       const socket = websocketTest.getSocket();
       
       if (socket === null) {
-        setConnectionStatus('Socket Initialization Failed');
+        setState(prev => ({ ...prev, status: 'Socket Initialization Failed' }));
         return () => {
           websocketTest.disconnect();
         };
       }
 
       socket.on('connect', () => {
-        logger.info('Socket.IO Connected', 
-          createLogMetadata('agent-metrics', undefined, {
-            component: 'agent-metrics'
-          })
-        );
-        setConnectionStatus('Connected');
+        if (!isActive) return;
+        const metadata: Partial<LogMetadata> = {
+          component: 'agent-metrics',
+        };
+        logger.info('Socket.IO Connected', createLogMetadata('agent-metrics', undefined, metadata));
+        setState(prev => ({ ...prev, status: 'Connected' }));
       });
 
       socket.on('metrics', (data: SystemMetrics) => {
-        setMetrics(data);
+        if (!isActive) return;
+        setState(prev => ({ ...prev, data }));
       });
 
       socket.on('connect_error', (error: Error) => {
-        logger.error('Socket.IO Connection Error', 
-          createLogMetadata('agent-metrics', error, {
-            component: 'agent-metrics'
-          })
-        );
-        setConnectionStatus('Connection Error');
+        if (!isActive) return;
+        const metadata: Partial<LogMetadata> = {
+          component: 'agent-metrics',
+          error,
+        };
+        logger.error('Socket.IO Connection Error', createLogMetadata('agent-metrics', error, metadata));
+        setState(prev => ({ ...prev, status: 'Connection Error' }));
       });
 
       socket.on('disconnect', () => {
-        logger.warn('Socket.IO Disconnected', 
-          createLogMetadata('agent-metrics', undefined, {
-            component: 'agent-metrics'
-          })
-        );
-        setConnectionStatus('Disconnected');
+        if (!isActive) return;
+        const metadata: Partial<LogMetadata> = {
+          component: 'agent-metrics',
+        };
+        logger.warn('Socket.IO Disconnected', createLogMetadata('agent-metrics', undefined, metadata));
+        setState(prev => ({ ...prev, status: 'Disconnected' }));
       });
 
       return () => {
@@ -76,39 +150,48 @@ const AgentMetrics: React.FC = () => {
       };
     };
 
-    const cleanup = testWebSocketConnection();
+    const cleanupPromise = testWebSocketConnection();
+    
     return () => {
-      const cleanupPromise = async (): Promise<void> => {
-        const cleanupFn = await cleanup;
-        cleanupFn();
-      };
-      void cleanupPromise(); // Explicitly mark as void to satisfy ESLint
+      isActive = false;
+      void cleanupPromise.then(cleanup => cleanup());
     };
   }, []);
 
-  if (metrics === null) {
+  if (state.data === null) {
     return (
       <div className="p-4">
         <h1 className="text-2xl font-bold mb-4">Agent Metrics</h1>
-        <p>Connection Status: {connectionStatus}</p>
+        <p>Connection Status: {state.status}</p>
         <p>Waiting for metrics...</p>
       </div>
     );
   }
 
+  const { data: metrics } = state;
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Agent Metrics</h1>
-      <p>Connection Status: {connectionStatus}</p>
+      <p>Connection Status: {state.status}</p>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white p-4 rounded shadow">
           <h2 className="text-lg font-semibold mb-2">System Info</h2>
           <div>
-            <p><span className="font-medium">Hostname:</span> {metrics.hostname}</p>
-            <p><span className="font-medium">IP Address:</span> {metrics.ipAddress}</p>
-            <p><span className="font-medium">Platform:</span> {metrics.osInfo.platform}</p>
-            <p><span className="font-medium">OS:</span> {metrics.osInfo.os}</p>
-            <p><span className="font-medium">Architecture:</span> {metrics.osInfo.arch}</p>
+            <p><span className="font-medium">Hostname:</span> {getDisplayValue(metrics.hostname)}</p>
+            <p><span className="font-medium">IP Address:</span> {getDisplayValue(metrics.ipAddress)}</p>
+            <p>
+              <span className="font-medium">Platform:</span>{' '}
+              {getOSInfoValue(metrics.osInfo, 'platform')}
+            </p>
+            <p>
+              <span className="font-medium">OS:</span>{' '}
+              {getOSInfoValue(metrics.osInfo, 'os')}
+            </p>
+            <p>
+              <span className="font-medium">Architecture:</span>{' '}
+              {getOSInfoValue(metrics.osInfo, 'arch')}
+            </p>
           </div>
         </div>
         <div className="bg-white p-4 rounded shadow">
@@ -116,11 +199,11 @@ const AgentMetrics: React.FC = () => {
           <div>
             <p>
               <span className="font-medium">CPU Usage:</span>{' '}
-              {metrics.cpuUsage.toFixed(1)}%
+              {formatPercentage(metrics.cpu?.total)}
             </p>
             <p>
               <span className="font-medium">Memory Usage:</span>{' '}
-              {metrics.memoryUsage.toFixed(1)}%
+              {formatPercentage(metrics.memory?.usage)}
             </p>
           </div>
         </div>

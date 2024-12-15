@@ -88,8 +88,10 @@ export function isNonNullish<T>(value: T | null | undefined): value is T {
 
 /**
  * Type guard for function values
+ * @param value - The value to check
+ * @returns True if the value is a function, false otherwise
  */
-export function isFunction(value: unknown): value is Function {
+export function isFunction(value: unknown): value is (...args: unknown[]) => unknown {
   return typeof value === 'function';
 }
 

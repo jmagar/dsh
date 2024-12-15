@@ -14,7 +14,7 @@ interface LogEvent {
 type PrismaEvents = {
   query: (event: Prisma.QueryEvent) => void;
   error: (event: LogEvent) => void;
-};
+}
 
 export class DatabaseClient extends PrismaClient<Prisma.PrismaClientOptions, 'query' | 'error'> {
   private static instance: DatabaseClient | null = null;
@@ -122,4 +122,4 @@ export class DatabaseClient extends PrismaClient<Prisma.PrismaClientOptions, 'qu
   }
 }
 
-export const initializeDb = () => DatabaseClient.getInstance();
+export const initializeDb = (): Promise<DatabaseClient> => DatabaseClient.getInstance();

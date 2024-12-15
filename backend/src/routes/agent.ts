@@ -1,168 +1,229 @@
-import { Router } from 'express';
-import { WebSocket } from 'ws';
-import { DatabaseClient } from '../utils/db';
-import { RedisClient } from '../utils/redis';
-import { AgentMonitor } from '../utils/agent';
-import { logger } from '../utils/logger';
-import { createLogMetadata } from '@dsh/shared';
+import { createLogMetadata, LogMetadata, AgentMetadata } from '@dsh/shared';
+import { Router, Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { Server as WebSocketServer, WebSocket } from 'ws';
 
-interface SystemMetrics {
+import { DatabaseClient } from '../utils/db';
+import { logger } from '../utils/logger';
+import { RedisClient } from '../utils/redis';
+
+interface AgentRegistrationRequest {
   hostname: string;
-  ipAddress: string;
-  cpuUsage: number;
-  memoryUsage: number;
   osInfo: {
     platform: string;
     os: string;
     arch: string;
     release?: string;
   };
+  capabilities: string[];
+  environment: Record<string, string>;
+}
+
+interface AgentMetricsRequest {
+  metrics: {
+    cpuUsage: number;
+    memoryUsage: number;
+    diskUsage: number;
+  };
   timestamp: string;
+}
+
+// Match Prisma's expected type
+interface ServerCreateInput {
+  id: string;
+  name: string; // Required by Prisma
+  hostname: string;
+  status: 'online' | 'offline';
+  lastSeen: Date;
+  osInfo: AgentRegistrationRequest['osInfo'];
+  metadata: string;
 }
 
 export function setupAgentRoutes(
   db: DatabaseClient,
   redis: RedisClient,
-  agentMonitor: AgentMonitor
+  wss: WebSocketServer
 ): Router {
   const router = Router();
-  const wss = new WebSocket.Server({ noServer: true });
 
   // Handle WebSocket upgrade
-  router.get('/ws/agent', (req, res) => {
-    if (!req.headers.upgrade || req.headers.upgrade.toLowerCase() !== 'websocket') {
+  router.get('/ws/agent', (req: Request, res: Response) => {
+    const upgradeHeader = req.headers.upgrade;
+    if (typeof upgradeHeader !== 'string' || upgradeHeader.toLowerCase() !== 'websocket') {
       return res.status(400).json({ error: 'Expected WebSocket connection' });
     }
 
-    // Pass request handling to WebSocket server
-    wss.handleUpgrade(req, req.socket, Buffer.alloc(0), ws => {
-      wss.emit('connection', ws, req);
+    // Type-safe WebSocket server methods
+    const wsServer = wss as WebSocketServer & {
+      handleUpgrade(
+        request: Request,
+        socket: import('net').Socket,
+        head: Buffer,
+        callback: (client: WebSocket) => void
+      ): void;
+    };
+
+    wsServer.handleUpgrade(req, req.socket, Buffer.alloc(0), (client: WebSocket) => {
+      wss.emit('connection', client, req);
     });
     return undefined;
   });
 
-  // Handle WebSocket connections
-  wss.on('connection', async (ws: WebSocket & { remoteAddress?: string, remotePort?: number }) => {
-    let agentId: string | null = null;
-
-    logger.info('Agent WebSocket Connected', 
-      createLogMetadata('dsh-backend', 'development', {
-        component: 'agent-websocket',
-        metrics: {
-          connections: Number(wss.clients.size)
-        }
-      })
-    );
-
-    // Handle incoming messages
-    ws.on('message', async (data: Buffer) => {
+  // Handle agent registration
+  router.post('/register', (req: Request, res: Response) => {
+    void (async () => {
       try {
-        const rawMetricsStr = data.toString();
-        logger.info('Received Agent Metrics', 
-          createLogMetadata('dsh-backend', 'development', {
-            component: 'agent-websocket',
-            metrics: {
-              messageSize: rawMetricsStr.length
-            }
-          })
-        );
+        const agentId = uuidv4();
+        const payload = req.body as AgentRegistrationRequest;
 
-        const rawMetrics = JSON.parse(rawMetricsStr);
-        const metrics: SystemMetrics = {
-          ...rawMetrics,
-          cpuUsage: Number(rawMetrics.cpuUsage),
-          memoryUsage: Number(rawMetrics.memoryUsage),
+        const metadata: Partial<LogMetadata & AgentMetadata> = {
+          component: 'agent',
+          agentId,
+          // Remove metrics from registration metadata as it's not relevant here
         };
 
-        // Find or create server
-        const server = await db.server.upsert({
-          where: {
-            hostname_ipAddress: {
-              hostname: metrics.hostname,
-              ipAddress: metrics.ipAddress || '',
-            },
-          },
-          create: {
-            name: metrics.hostname,
-            hostname: metrics.hostname,
-            ipAddress: metrics.ipAddress,
-            status: 'online',
-            osInfo: {
-              ...metrics.osInfo,
-              release: metrics.osInfo.release,
-            },
-          },
-          update: {
-            lastSeen: new Date(),
-            status: 'online',
-            osInfo: {
-              ...metrics.osInfo,
-              release: metrics.osInfo.release,
-            },
-          },
+        logger.info('Registering new agent', createLogMetadata('dsh-backend', undefined, metadata));
+
+        const serverData: ServerCreateInput = {
+          id: agentId,
+          name: payload.hostname, // Use hostname as name
+          hostname: payload.hostname,
+          status: 'online',
+          lastSeen: new Date(),
+          osInfo: payload.osInfo,
+          metadata: JSON.stringify({
+            capabilities: payload.capabilities,
+            environment: payload.environment,
+          }),
+        };
+
+        const server = await db.server.create({
+          data: serverData,
         });
 
-        // Store agent ID for cleanup
-        agentId = server.id;
-
-        // Update agent status in Redis
-        await redis.set(`agent:${server.id}:status`, 'online');
-        await redis.set(`agent:${server.id}:lastSeen`, new Date().toISOString());
-
-        // Send metrics to agent monitor
-        await agentMonitor.handleMetrics(server.id, {
-          cpu: { usage: metrics.cpuUsage },
-          memory: {
-            used: metrics.memoryUsage,
-            total: 100, // Assuming memoryUsage is a percentage
-          },
-          os: {
-            platform: metrics.osInfo.platform,
-            release: metrics.osInfo.release || metrics.osInfo.platform,
-          },
-          timestamp: Date.now(),
+        res.json({
+          id: server.id,
+          status: 'registered',
         });
       } catch (error) {
         const errorObj = error instanceof Error ? error : new Error(String(error));
-        
-        logger.error('Error Processing WebSocket Message', 
+        logger.error('Agent registration failed', 
           createLogMetadata('dsh-backend', errorObj, {
-            component: 'agent-websocket'
+            component: 'agent',
           })
         );
+        res.status(500).json({ error: errorObj.message });
       }
-    });
+    })();
+  });
 
-    // Handle disconnection
-    ws.on('close', () => {
-      if (agentId) {
-        // Update agent status in Redis
-        void redis.set(`agent:${agentId}:status`, 'offline');
-
-        // Update server status in database
-        void db.server.update({
-          where: { id: agentId },
-          data: { status: 'offline' },
-        });
+  // Handle agent metrics updates
+  router.post('/:id/metrics', (req: Request, res: Response) => {
+    void (async () => {
+      const agentId = req.params.id;
+      if (typeof agentId !== 'string' || agentId.length === 0) {
+        res.status(400).json({ error: 'Agent ID is required' });
+        return;
       }
 
-      logger.info('Agent WebSocket Disconnected', 
-        createLogMetadata('dsh-backend', 'development', {
-          component: 'agent-websocket',
+      try {
+        const payload = req.body as AgentMetricsRequest;
+
+        const metadata: Partial<LogMetadata & AgentMetadata> = {
+          component: 'agent',
+          agentId,
           metrics: {
-            connections: Number(wss.clients.size)
-          }
-        })
-      );
-    });
+            receivedAt: new Date(payload.timestamp).getTime(),
+            cpuUsage: payload.metrics.cpuUsage,
+            memoryUsage: payload.metrics.memoryUsage,
+          },
+        };
 
-    ws.on('error', (error: Error) => {
-      logger.error('Agent WebSocket Error', 
-        createLogMetadata('dsh-backend', error.message, {
-          component: 'agent-websocket'
-        })
-      );
-    });
+        logger.debug('Received metrics from agent', createLogMetadata('dsh-backend', undefined, metadata));
+
+        await db.server.update({
+          where: { id: agentId },
+          data: {
+            lastSeen: new Date(),
+            status: 'online',
+          },
+        });
+
+        // Store metrics in Redis with TTL
+        const metricsKey = `agent:${agentId}:metrics:latest`;
+        await redis.setex(
+          metricsKey,
+          300, // 5 minutes TTL
+          JSON.stringify(payload.metrics)
+        );
+
+        // Broadcast metrics update to connected WebSocket clients
+        const message = JSON.stringify({
+          type: 'metrics',
+          agentId,
+          metrics: payload.metrics,
+          timestamp: payload.timestamp,
+        });
+
+        // Type-safe WebSocket broadcast
+        const clients = wss.clients as Set<WebSocket>;
+        clients.forEach((client: WebSocket) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
+
+        res.json({ status: 'success' });
+      } catch (error) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        logger.error('Failed to process agent metrics', 
+          createLogMetadata('dsh-backend', errorObj, {
+            component: 'agent',
+            agentId,
+          })
+        );
+        res.status(500).json({ error: errorObj.message });
+      }
+    })();
+  });
+
+  // Handle agent heartbeat
+  router.post('/:id/heartbeat', (req: Request, res: Response) => {
+    void (async () => {
+      const agentId = req.params.id;
+      if (typeof agentId !== 'string' || agentId.length === 0) {
+        res.status(400).json({ error: 'Agent ID is required' });
+        return;
+      }
+
+      try {
+        const metadata: Partial<LogMetadata & AgentMetadata> = {
+          component: 'agent',
+          agentId,
+        };
+
+        logger.debug('Received heartbeat from agent', createLogMetadata('dsh-backend', undefined, metadata));
+
+        await db.server.update({
+          where: { id: agentId },
+          data: {
+            lastSeen: new Date(),
+            status: 'online',
+          },
+        });
+
+        res.json({ status: 'success' });
+      } catch (error) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        logger.error('Failed to process agent heartbeat', 
+          createLogMetadata('dsh-backend', errorObj, {
+            component: 'agent',
+            agentId,
+          })
+        );
+        res.status(500).json({ error: errorObj.message });
+      }
+    })();
   });
 
   return router;

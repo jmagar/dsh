@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import { EnvTest } from './components/EnvTest';
-import { SystemStatus } from './components/SystemStatus';
+import SystemStatus from './components/SystemStatus';
 import AgentMetrics from './pages/AgentMetrics';
 import './styles/global.css';
 

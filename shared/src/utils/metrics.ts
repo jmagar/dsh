@@ -89,9 +89,11 @@ export const LabelNames = {
   USER_TYPE: 'user_type'
 } as const;
 
+import { isString } from './type-guards';
+
 // Utility functions
 export const createMetricName = (name: string, prefix?: string): string =>
-  prefix ? `${prefix}_${name}` : name;
+  prefix !== undefined && prefix !== null && prefix.length > 0 ? `${prefix}_${name}` : name;
 
 export const sanitizeMetricValue = (value: number): number =>
   Number.isFinite(value) ? value : 0;
@@ -103,17 +105,17 @@ export const createLabels = (
 ): MetricLabels => ({
   [LabelNames.SERVICE]: service,
   [LabelNames.ENVIRONMENT]: environment,
-  component: labels.component || '',
-  instance: labels.instance || '',
-  version: labels.version || '',
-  method: labels.method || '',
-  path: labels.path || '',
-  status: labels.status || '',
-  operation: labels.operation || '',
-  table: labels.table || '',
-  error_type: labels.error_type || '',
-  command: labels.command || '',
-  key_pattern: labels.key_pattern || '',
-  feature: labels.feature || '',
-  user_type: labels.user_type || ''
+  component: isString(labels.component) && labels.component.length > 0 ? labels.component : '',
+  instance: isString(labels.instance) && labels.instance.length > 0 ? labels.instance : '',
+  version: isString(labels.version) && labels.version.length > 0 ? labels.version : '',
+  method: isString(labels.method) && labels.method.length > 0 ? labels.method : '',
+  path: isString(labels.path) && labels.path.length > 0 ? labels.path : '',
+  status: isString(labels.status) && labels.status.length > 0 ? labels.status : '',
+  operation: isString(labels.operation) && labels.operation.length > 0 ? labels.operation : '',
+  table: isString(labels.table) && labels.table.length > 0 ? labels.table : '',
+  error_type: isString(labels.error_type) && labels.error_type.length > 0 ? labels.error_type : '',
+  command: isString(labels.command) && labels.command.length > 0 ? labels.command : '',
+  key_pattern: isString(labels.key_pattern) && labels.key_pattern.length > 0 ? labels.key_pattern : '',
+  feature: isString(labels.feature) && labels.feature.length > 0 ? labels.feature : '',
+  user_type: isString(labels.user_type) && labels.user_type.length > 0 ? labels.user_type : ''
 });

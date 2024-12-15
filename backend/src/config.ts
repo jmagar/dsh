@@ -1,7 +1,7 @@
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
 
-import { env } from './env';
+import { env } from './config/env';
 
 // Load environment variables
 dotenvConfig();

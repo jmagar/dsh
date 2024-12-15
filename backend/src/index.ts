@@ -1,9 +1,9 @@
-import { createServer } from './server';
 import { config } from './config';
-import { logger } from './utils/logger';
+import { createServer } from './server';
 import { initializeDb } from './utils/db';
+import { logger } from './utils/logger';
 
-async function startServer() {
+async function startServer(): Promise<void> {
   try {
     // Ensure database is connected before starting the server
     const db = await initializeDb();
@@ -14,7 +14,7 @@ async function startServer() {
     const server = await createServer();
 
     // Start the server
-    server.listen(config.server.port, () => {
+    server.listen(config.server.port, (): void => {
       logger.info(`Server running on port ${config.server.port}`, {
         component: 'server',
         metrics: {
@@ -31,4 +31,11 @@ async function startServer() {
   }
 }
 
-startServer();
+// Add Promise<void> return type to the IIFE
+startServer().catch((error: unknown): void => {
+  logger.error('Unhandled error in server startup', {
+    component: 'server',
+    error: error instanceof Error ? error : new Error(String(error))
+  });
+  process.exit(1);
+});

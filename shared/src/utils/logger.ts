@@ -54,7 +54,7 @@ export function createLogMetadata(
     ...additionalMetadata,
   };
 
-  if (error) {
+  if (error !== undefined && error !== null) {
     metadata.error = typeof error === 'string' ? new Error(error) : error;
   }
 

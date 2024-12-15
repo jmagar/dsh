@@ -4,6 +4,32 @@ import { z } from 'zod';
 // Load environment variables from .env file
 dotenvConfig();
 
+// Define server configuration type
+export interface ServerConfig {
+  readonly port: number;
+  readonly frontendUrl: string;
+  readonly rateLimitWindowMs: number;
+  readonly rateLimitMaxRequests: number;
+}
+
+// Define complete configuration type
+export interface Config {
+  readonly env: string;
+  readonly isProduction: boolean;
+  readonly isDevelopment: boolean;
+  readonly isTest: boolean;
+  readonly server: ServerConfig;
+  readonly database: {
+    readonly url: string;
+  };
+  readonly redis: {
+    readonly url: string;
+  };
+  readonly jwt: {
+    readonly secret: string;
+  };
+}
+
 // Define environment schema for validation
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -33,31 +59,8 @@ if (!parsedEnv.success) {
   throw new Error(`Invalid environment configuration: ${parsedEnv.error.message}`);
 }
 
-// Define configuration type
-type ConfigType = {
-  env: string;
-  isProduction: boolean;
-  isDevelopment: boolean;
-  isTest: boolean;
-  server: {
-    port: number;
-    frontendUrl: string;
-    rateLimitWindowMs: number;
-    rateLimitMaxRequests: number;
-  };
-  database: {
-    url: string;
-  };
-  redis: {
-    url: string;
-  };
-  jwt: {
-    secret: string;
-  };
-};
-
-// Export validated configuration
-export const config: ConfigType = {
+// Create the validated configuration object
+const validatedConfig: Config = {
   env: parsedEnv.data.NODE_ENV,
   isProduction: parsedEnv.data.NODE_ENV === 'production',
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
@@ -65,7 +68,7 @@ export const config: ConfigType = {
 
   server: {
     port: parsedEnv.data.PORT,
-    frontendUrl: parsedEnv.data.FRONTEND_URL || 'http://localhost:3000',
+    frontendUrl: parsedEnv.data.FRONTEND_URL ?? 'http://localhost:3000',
     rateLimitWindowMs: parsedEnv.data.RATE_LIMIT_WINDOW_MS,
     rateLimitMaxRequests: parsedEnv.data.RATE_LIMIT_MAX_REQUESTS,
   },
@@ -82,3 +85,6 @@ export const config: ConfigType = {
     secret: parsedEnv.data.JWT_SECRET,
   }
 };
+
+// Export the validated configuration and its type
+export const config: Config = validatedConfig;

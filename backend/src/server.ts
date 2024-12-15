@@ -6,14 +6,15 @@ import express, { json, urlencoded } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { verify } from 'jsonwebtoken';
-import { Server as SocketServer } from 'socket.io';
+import { Server as _SocketServer } from 'socket.io';
+import { Server as WebSocketServer } from 'ws';
 
 import { config } from './config';
 import { setupAgentRoutes } from './routes/agent';
 import { setupHealthRoutes } from './routes/health';
+import { agentMonitorPromise } from './utils/agent';
 import { initializeDb } from './utils/db';
 import { logger } from './utils/logger';
-import { agentMonitorPromise } from './utils/agent';
 import { redis } from './utils/redis';
 
 interface SocketData {
@@ -29,7 +30,7 @@ interface SocketAuth {
 }
 
 // Extend SocketServer with additional properties while maintaining base functionality
-type SocketIOServer = SocketServer<
+type SocketIOServer = _SocketServer<
   Record<string, never>,
   Record<string, never>,
   Record<string, never>,
@@ -43,37 +44,8 @@ type SocketIOServer = SocketServer<
 export async function createServer(): Promise<express.Application> {
   const app = express();
 
-  // Define server configuration type
-  interface ServerConfig {
-    port: number;
-    frontendUrl: string;
-    rateLimitWindowMs: number;
-    rateLimitMaxRequests: number;
-  }
-
-  // Explicitly type config.server
-  const serverConfig: ServerConfig = {
-    port: (config.server as any).port,
-    frontendUrl: (config.server as any).frontendUrl,
-    rateLimitWindowMs: (config.server as any).rateLimitWindowMs,
-    rateLimitMaxRequests: (config.server as any).rateLimitMaxRequests
-  };
-
   // Security middleware
   app.use(helmet());
-  // CORS DISABLED
-  // app.use(
-  //   cors({
-  //     origin: [
-  //       serverConfig.frontendUrl, 
-  //       'http://localhost:3000',  
-  //       'http://127.0.0.1:3000'   
-  //     ],
-  //     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  //     allowedHeaders: ['Content-Type', 'Authorization'],
-  //     credentials: true
-  //   })
-  // );
 
   // Compression middleware
   app.use(compression());
@@ -83,56 +55,62 @@ export async function createServer(): Promise<express.Application> {
   app.use(urlencoded({ extended: true, limit: '10mb' }));
 
   // Rate limiting middleware
-  const limiter = rateLimit({
-    windowMs: serverConfig.rateLimitWindowMs,
-    max: serverConfig.rateLimitMaxRequests,
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
+  const rateLimitOptions = createRateLimitOptions();
+  const limiter = rateLimit(rateLimitOptions);
   app.use(limiter);
 
-  // WebSocket server
+  // Create HTTP server
   const httpServer = createHttpServer(app);
-  const io = new SocketServer<
+
+  // Create WebSocket server for agent connections
+  const wss = new WebSocketServer({ noServer: true });
+
+  // Create Socket.IO server for client connections
+  const io = new _SocketServer<
     Record<string, never>,
     Record<string, never>,
     Record<string, never>,
     SocketData
   >(httpServer, {
     cors: {
-      origin: serverConfig.frontendUrl,
+      origin: config.server.frontendUrl,
     },
   }) as SocketIOServer;
 
-  // Async initialization of dependencies
-  async function setupDependencies() {
+  async function setupDependencies(): Promise<void> {
     const db = await initializeDb();
-    const agentMonitor = await agentMonitorPromise;
+    
+    // Initialize agent monitor
+    await agentMonitorPromise;
 
     // Add routes
     const healthRoutes = setupHealthRoutes(db, redis);
-    const agentRoutes = setupAgentRoutes(db, redis, agentMonitor);
+    const agentRoutes = setupAgentRoutes(db, redis, wss);
 
     app.use('/health', healthRoutes);
     app.use('/', agentRoutes);
 
     // Handle WebSocket upgrades
-    httpServer.on('upgrade', (request, socket, head) => {
-      const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+    httpServer.on('upgrade', (_request, _socket, _head) => {
+      const _requestUrl = _request.url ?? '';
+      const _requestHost = _request.headers.host ?? 'localhost';
+      const _pathname = new URL(_requestUrl, `http://${_requestHost}`).pathname;
 
-      if (pathname === '/ws/agent') {
+      if (_pathname === '/ws/agent') {
         logger.info('WebSocket upgrade request received', {
           component: 'server',
-          url: pathname,
+          url: _pathname,
           metrics: {
             connections: io.engine.clientsCount,
           },
         });
-        // Let the agent route handle the upgrade
-        app._router.handle(request, socket as any, head);
+
+        wss.handleUpgrade(_request, _socket, _head, (_ws) => {
+          wss.emit('connection', _ws, _request);
+        });
       } else {
         // Close the connection for unhandled upgrade requests
-        socket.destroy();
+        _socket.destroy();
       }
     });
 
@@ -154,44 +132,68 @@ export async function createServer(): Promise<express.Application> {
     });
 
     // Socket connection handling
-    io.on('connection', socket => {
+    io.on('connection', (_socket) => {
       logger.info('Socket connected', {
         component: 'server',
         metrics: {
-          socketConnections: io.engine.clientsCount,
+          socketConnections: io.engine.clientsCount || 0,
         },
-      });
-
-      socket.on('error', (error: unknown) => {
-        const errorObj = error instanceof Error ? error : new Error(String(error));
-        logger.error('Socket error', {
-          component: 'server',
-          error: errorObj,
-          metrics: {
-            socketConnections: io.engine.clientsCount,
-          },
-        });
-      });
-
-      socket.on('disconnect', () => {
-        logger.info('Socket disconnected', {
-          component: 'server',
-          metrics: {
-            socketConnections: io.engine.clientsCount,
-          },
-        });
       });
     });
   }
 
-  // Call setup dependencies
-  await setupDependencies().catch(error => {
-    logger.error('Failed to setup dependencies', {
-      component: 'server',
-      error: error instanceof Error ? error : new Error(String(error))
-    });
-    process.exit(1);
-  });
+  await setupDependencies();
 
   return app;
+}
+
+// Rate limit configuration interfaces
+interface RateLimitConfig {
+  rateLimitWindowMs: number;
+  rateLimitMaxRequests: number;
+}
+
+interface RateLimitOptions {
+  windowMs: number;
+  max: number;
+  standardHeaders: boolean;
+  legacyHeaders: boolean;
+}
+
+// Default rate limit values
+const DEFAULT_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 100,
+} as const;
+
+// Type guard for server config
+function isRateLimitConfig(value: unknown): value is RateLimitConfig {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'rateLimitWindowMs' in value &&
+    'rateLimitMaxRequests' in value &&
+    typeof (value as RateLimitConfig).rateLimitWindowMs === 'number' &&
+    typeof (value as RateLimitConfig).rateLimitMaxRequests === 'number'
+  );
+}
+
+// Create rate limit options with validation
+function createRateLimitOptions(): RateLimitOptions {
+  if (!isRateLimitConfig(config.server)) {
+    return {
+      windowMs: DEFAULT_RATE_LIMIT.windowMs,
+      max: DEFAULT_RATE_LIMIT.maxRequests,
+      standardHeaders: true,
+      legacyHeaders: false,
+    };
+  }
+
+  const { rateLimitWindowMs, rateLimitMaxRequests } = config.server;
+  return {
+    windowMs: rateLimitWindowMs,
+    max: rateLimitMaxRequests,
+    standardHeaders: true,
+    legacyHeaders: false,
+  };
 }

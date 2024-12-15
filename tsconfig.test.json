@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest", "node"],
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "strict": true
+  },
+  "include": [
+    "backend/tests/**/*.ts",
+    "backend/src/**/*.ts",
+    "shared/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts"
+  ]
+}

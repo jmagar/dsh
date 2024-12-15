@@ -1,10 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { config } from 'dotenv';
+import path from 'path';
+import dotenv from 'dotenv';
 
-// Load environment variables from .env.test if it exists
-config({ path: '.env.test' });
+// Load environment variables from backend/.env
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-// Set default test environment variables
+// Define type for environment variables
+type EnvKey = keyof typeof testEnv;
+
+// Set test environment variables
 const testEnv = {
   NODE_ENV: 'test',
   PORT: '3000',
@@ -16,7 +20,13 @@ const testEnv = {
   RATE_LIMIT_MAX_REQUESTS: '100',
 } as const;
 
+// Safely set environment variables using a type-safe approach
+function setTestEnv(key: EnvKey, value: string): void {
+  // Use Object.assign to avoid direct mutation of process.env
+  Object.assign(process.env, { [key]: value });
+}
+
 // Apply test environment variables
 Object.entries(testEnv).forEach(([key, value]) => {
-  process.env[key] = value;
+  setTestEnv(key as EnvKey, value);
 });

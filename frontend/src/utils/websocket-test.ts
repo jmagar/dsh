@@ -1,8 +1,18 @@
-import { io, Socket } from 'socket.io-client';
+import { Socket, io } from 'socket.io-client';
 
-import { SystemMetrics } from '../shared/types';
+import { createLogMetadata, logger } from './logger';
 
-import { logger, createLogMetadata } from './logger';
+// Custom error class for WebSocket errors
+class WebSocketError extends Error {
+  readonly component: string;
+
+  constructor(message: string, component = 'websocket-test') {
+    super(message);
+    this.name = 'WebSocketError';
+    this.component = component;
+    Object.setPrototypeOf(this, WebSocketError.prototype);
+  }
+}
 
 export class WebSocketTest {
   private static instance: WebSocketTest | null = null;
@@ -19,23 +29,18 @@ export class WebSocketTest {
 
   private initializeSocket(): void {
     try {
-      const baseSocketUrl = process.env.REACT_APP_WEBSOCKET_URL;
+      const baseSocketUrl = process.env.REACT_APP_WEBSOCKET_URL ?? '';
       logger.debug('WebSocket Initialization', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test'
-        })
+        createLogMetadata('websocket-test')
       );
       
-      if (typeof baseSocketUrl !== 'string' || baseSocketUrl.length === 0) {
-        throw new Error('WebSocket URL not configured');
+      if (typeof baseSocketUrl !== 'string' || baseSocketUrl.trim() === '') {
+        throw new WebSocketError('WebSocket URL not configured');
       }
 
       const socketUrl = `${baseSocketUrl}/ws/agent`;
       logger.debug('WebSocket Connection Attempt', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test',
-          url: baseSocketUrl
-        })
+        createLogMetadata('websocket-test')
       );
 
       this.socket = io(socketUrl, {
@@ -49,91 +54,32 @@ export class WebSocketTest {
       });
 
       this.socket.on('connect', () => {
-        logger.info('WebSocket Connected', 
-          createLogMetadata('websocket-test', undefined, {
-            component: 'websocket-test'
-          })
+        logger.debug('WebSocket Connected', 
+          createLogMetadata('websocket-test')
         );
       });
 
-      this.socket.on('connect_error', (error) => {
-        logger.error('WebSocket Connection Error', 
-          createLogMetadata('websocket-test', new Error(String(error)), {
-            component: 'websocket-test'
-          })
-        );
+      this.socket.on('disconnect', (_reason: string) => {
+        logger.info('WebSocket disconnected', createLogMetadata('websocket-test'));
       });
 
-      this.socket.on('disconnect', () => {
-        logger.warn('WebSocket Disconnected', 
-          createLogMetadata('websocket-test', undefined, {
-            component: 'websocket-test'
-          })
+      this.socket.on('error', (error: Error) => {
+        const wsError = new WebSocketError(
+          error instanceof Error ? error.message : String(error)
+        );
+        logger.error('WebSocket Error', 
+          createLogMetadata('websocket-test', wsError)
         );
       });
-
-      this.setupSocketListeners();
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const wsError = error instanceof WebSocketError 
+        ? error 
+        : new WebSocketError(error instanceof Error ? error.message : String(error));
+      
       logger.error('WebSocket Initialization Failed', 
-        createLogMetadata('websocket-test', errorObj, {
-          component: 'websocket-test'
-        })
+        createLogMetadata('websocket-test', wsError)
       );
     }
-  }
-
-  private setupSocketListeners(): void {
-    const socket = this.socket;
-    if (socket === null) {
-      logger.error('Cannot setup listeners: WebSocket not initialized',
-        createLogMetadata('websocket-test', new Error('WebSocket not initialized'), {
-          component: 'websocket-test'
-        })
-      );
-      return;
-    }
-
-    socket.on('connect', () => {
-      logger.info('WebSocket Connected', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test'
-        })
-      );
-    });
-
-    socket.on('metrics', (data: SystemMetrics) => {
-      logger.info('Received Metrics', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test'
-        })
-      );
-      logger.debug('Received Metrics', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test',
-          metrics: {
-            cpuUsage: data.cpuUsage,
-            memoryUsage: data.memoryUsage
-          }
-        })
-      );
-    });
-
-    socket.on('connect_error', (error: Error) => {
-      logger.error('WebSocket Connection Error', 
-        createLogMetadata('websocket-test', error, {
-          component: 'websocket-test'
-        })
-      );
-    });
-
-    socket.on('disconnect', () => {
-      logger.info('WebSocket Disconnected', 
-        createLogMetadata('websocket-test', undefined, {
-          component: 'websocket-test'
-        })
-      );
-    });
   }
 
   public connect(): Promise<void> {
@@ -144,24 +90,25 @@ export class WebSocketTest {
 
       // After initialization, check if socket exists
       if (this.socket === null) {
-        reject(new Error('Failed to initialize WebSocket'));
+        reject(new WebSocketError('Failed to initialize WebSocket'));
         return;
       }
 
-      if (this.socket.connected === true) {
+      if (this.socket.connected) {
         resolve();
         return;
       }
 
       const socket = this.socket;
       socket.on('connect', () => resolve());
-      socket.on('connect_error', (error: Error) => {
-        logger.error('WebSocket Connection Error', 
-          createLogMetadata('websocket-test', error, {
-            component: 'websocket-test'
-          })
+      socket.on('error', (error: Error) => {
+        const wsError = new WebSocketError(
+          error instanceof Error ? error.message : String(error)
         );
-        reject(error);
+        logger.error('WebSocket Connection Error', 
+          createLogMetadata('websocket-test', wsError)
+        );
+        reject(wsError);
       });
     });
   }
@@ -169,14 +116,11 @@ export class WebSocketTest {
   public sendTestMessage(message: string): void {
     const socket = this.socket;
     if (socket === null) {
-      throw new Error('WebSocket not initialized');
+      throw new WebSocketError('WebSocket not initialized');
     }
 
     logger.debug('Sending Test Message', 
-      createLogMetadata('websocket-test', undefined, {
-        component: 'websocket-test',
-        message: message
-      })
+      createLogMetadata('websocket-test')
     );
     socket.emit('test_message', message);
   }
