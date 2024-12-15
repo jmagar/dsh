@@ -45,21 +45,24 @@
     "kill-port": "^2.0.1",
     "node-html-parser": "^6.1.13",
     "postcss": "^8.4.35",
+    "react-app-rewired": "^2.2.1",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "dev": "react-scripts start",
     "build": "react-scripts build",
-    "test": "jest --passWithNoTests",
+    "start": "react-scripts start",
+    "test": "react-scripts test",
     "test:unit": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src tests --ext .ts,.tsx --cache",
-    "lint:fix": "eslint src tests --ext .ts,.tsx --fix --cache",
+    "lint": "eslint src --ext .ts,.tsx --cache",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix --cache",
     "type-check": "tsc --noEmit",
-    "stop": "kill-port 3000"
+    "stop": "kill-port 3000",
+    "eject": "react-scripts eject"
   },
   "browserslist": {
     "production": [

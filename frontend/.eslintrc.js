@@ -1,12 +1,9 @@
-const { FlatCompat } = require('@eslint/eslintrc');
-const path = require('path');
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
 module.exports = {
-  root: true,
-  extends: ['../.eslintrc.js', 'plugin:react/recommended', 'plugin:react-hooks/recommended'],
+  extends: [
+    '../.eslintrc.js', 
+    'plugin:react/recommended', 
+    'plugin:react-hooks/recommended'
+  ],
   plugins: ['react', 'react-hooks'],
   env: {
     browser: true,

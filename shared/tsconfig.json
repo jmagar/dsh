@@ -3,15 +3,20 @@
   "compilerOptions": {
     "composite": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "baseUrl": "src",
+    "rootDir": ".",
+    "baseUrl": ".",
     "declaration": true,
-    "module": "CommonJS",
+    "declarationMap": true,
+    "sourceMap": true,
+    "module": "ES2020",
     "moduleResolution": "node",
     "paths": {
-      "*": ["./*"]
+      "*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "src/**/*.json"],
+  "include": [
+    "src/**/*", 
+    "src/**/*.json"
+  ],
   "exclude": ["dist", "node_modules"]
 }

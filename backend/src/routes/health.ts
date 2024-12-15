@@ -213,31 +213,14 @@ export function setupHealthRoutes(
                 : { platform: 'unknown', os: 'unknown', arch: 'unknown', release: undefined };
               const agentStatus: AgentStatus = {
                 id: server.id,
+                hostname: server.hostname,
                 connected: server.status === 'online',
-                lastSeen: server.lastSeen ?? new Date(),
-                version: isNonEmptyString(osInfo.release) 
-                  ? osInfo.release 
-                  : 'unknown',
-                systemInfo: {
-                  hostname: server.hostname,
+                lastSeen: server.lastSeen ? server.lastSeen.toISOString() : new Date().toISOString(),
+                osInfo: {
                   platform: osInfo.platform,
                   os: osInfo.os,
-                  version: isNonEmptyString(osInfo.release)
-                    ? osInfo.release 
-                    : 'unknown',
-                  architecture: osInfo.arch,
-                  cpuInfo: [],
-                  memoryInfo: {
-                    total: 0,
-                    available: 0,
-                    used: 0,
-                    free: 0,
-                    swapTotal: 0,
-                    swapUsed: 0,
-                    swapFree: 0,
-                  },
-                  environment: {},
-                  capabilities: [],
+                  arch: osInfo.arch,
+                  ...(isNonEmptyString(osInfo.release) ? { release: osInfo.release } : {}),
                 },
               };
 

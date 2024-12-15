@@ -19,15 +19,47 @@ interface AgentMetrics {
   timestamp: number;
 }
 
+// Define a type for the database Metric model to avoid any
+interface MetricModel {
+  create: (data: {
+    data: {
+      serverId: string;
+      type: string;
+      value: number;
+      timestamp: Date;
+    };
+  }) => Promise<void>;
+  findFirst: (options: {
+    where: {
+      serverId: string;
+      type: string;
+    };
+    orderBy: {
+      timestamp: 'desc';
+    };
+  }) => Promise<{
+    timestamp: Date;
+    value: number;
+  } | null>;
+}
+
+// Extend DatabaseClient to include Metric model
+interface ExtendedDatabaseClient extends DatabaseClient {
+  Metric: MetricModel;
+}
+
 export class AgentMonitor {
   private static instance: AgentMonitor | null = null;
 
   private constructor(
-    private readonly db: DatabaseClient,
+    private readonly db: ExtendedDatabaseClient,
     private readonly redis: RedisClient
   ) {}
 
-  public static getInstance(db: DatabaseClient, redis: RedisClient): AgentMonitor {
+  public static getInstance(
+    db: ExtendedDatabaseClient, 
+    redis: RedisClient
+  ): AgentMonitor {
     if (AgentMonitor.instance === null) {
       AgentMonitor.instance = new AgentMonitor(db, redis);
     }
@@ -57,7 +89,7 @@ export class AgentMonitor {
       };
 
       // Store metrics in database
-      await this.db.metric.create({
+      await this.db.Metric.create({
         data: metricData,
       });
 
@@ -133,7 +165,7 @@ export class AgentMonitor {
       }
 
       // Fetch from database if no valid cache
-      const latest = await this.db.metric.findFirst({
+      const latest = await this.db.Metric.findFirst({
         where: {
           serverId,
           type: 'agent_metrics',
@@ -182,8 +214,9 @@ export class AgentMonitor {
 
 // Create singleton instance
 async function initializeAgentMonitor(): Promise<AgentMonitor> {
-  const db = await DatabaseClient.getInstance();
-  const redis = RedisClient.getInstance(); // RedisClient.getInstance() returns synchronously
+  const db = await DatabaseClient.getInstance() as ExtendedDatabaseClient;
+  const redis = RedisClient.getInstance();
+  
   return AgentMonitor.getInstance(db, redis);
 }
 

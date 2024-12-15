@@ -1,6 +1,6 @@
 // External dependencies
 import { AgentStatus } from '@dsh/shared/types/agent';
-import { SystemMetrics } from '@dsh/shared/types/metrics';
+import { SystemMetrics, getSystemMetrics } from '@dsh/shared/types/metrics';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ComputerIcon from '@mui/icons-material/Computer';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -39,7 +39,7 @@ interface ServiceStatusCardProps {
 
 interface AgentStatusCardProps {
   agent: AgentStatus & { osInfo: { platform: string; os: string; arch: string; release?: string } };
-  metrics: SystemMetrics | null;
+  metrics?: SystemMetrics | null;
 }
 
 // Helper function to handle nullable strings
@@ -49,6 +49,10 @@ function getErrorMessage(error: string | null | undefined): string | null {
   }
   const trimmed = error.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+function formatPercentage(value: number = 0): string {
+  return `${value.toFixed(2)}%`;
 }
 
 const ServiceStatusCard: React.FC<ServiceStatusCardProps> = ({ name, isHealthy, error }) => {
@@ -79,29 +83,7 @@ const ServiceStatusCard: React.FC<ServiceStatusCardProps> = ({ name, isHealthy, 
 };
 
 const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => {
-  if (!metrics) {
-    return (
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <ComputerIcon color={agent.connected ? 'success' : 'error'} />
-            <Typography variant="h6" component="div">
-              {agent.id}
-            </Typography>
-          </Stack>
-          <Typography variant="body2" color="text.secondary">
-            No metrics available
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { cpuUsage, memoryUsage, diskUsage } = metrics.metrics || { 
-    cpuUsage: 0, 
-    memoryUsage: 0, 
-    diskUsage: 0 
-  };
+  const safeMetrics = getSystemMetrics(metrics ?? undefined);
 
   return (
     <Card sx={{ mb: 2 }}>
@@ -112,15 +94,15 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => 
             {agent.id}
           </Typography>
         </Stack>
-        <Box>
+        <div>
           <Typography variant="body2">
-            CPU: {cpuUsage.toFixed(2)}%
+            CPU Usage: {formatPercentage(safeMetrics.metrics.cpuUsage)}
           </Typography>
           <Typography variant="body2">
-            Memory: {memoryUsage.toFixed(2)}%
+            Memory Usage: {formatPercentage(safeMetrics.metrics.memoryUsage)}
           </Typography>
           <Typography variant="body2">
-            Disk: {diskUsage.toFixed(2)}%
+            Disk Usage: {formatPercentage(safeMetrics.metrics.diskUsage)}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             OS: {agent.osInfo.os} ({agent.osInfo.platform} {agent.osInfo.arch})
@@ -128,7 +110,7 @@ const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => 
           <Typography variant="body2" color="text.secondary">
             Last seen: {new Date(agent.lastSeen).toLocaleString()}
           </Typography>
-        </Box>
+        </div>
       </CardContent>
     </Card>
   );

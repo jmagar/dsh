@@ -47,9 +47,15 @@ export async function createServer(): Promise<express.Application> {
 
   // Security middleware
   app.use(helmet({
-    cors: {
-      origin: config.server.frontendUrl
-    }
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", config.server.frontendUrl],
+      }
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
 
   // CORS middleware

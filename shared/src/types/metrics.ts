@@ -16,6 +16,37 @@ export interface SystemMetrics {
   osInfo?: OSInfo;
 }
 
+// Helper function to safely extract metrics
+export function getSystemMetrics(metrics?: SystemMetrics): SystemMetrics {
+  if (!metrics || !metrics.metrics) {
+    return {
+      metrics: {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        diskUsage: 0
+      },
+      timestamp: new Date().toISOString(),
+      hostname: 'N/A',
+      ipAddress: 'N/A',
+      osInfo: {
+        platform: 'N/A',
+        os: 'N/A',
+        arch: 'N/A'
+      }
+    };
+  }
+  return {
+    ...metrics,
+    hostname: metrics.hostname ?? 'N/A',
+    ipAddress: metrics.ipAddress ?? 'N/A',
+    osInfo: metrics.osInfo ?? {
+      platform: 'N/A',
+      os: 'N/A',
+      arch: 'N/A'
+    }
+  };
+}
+
 export interface CPUMetrics {
   user: number;
   system: number;
