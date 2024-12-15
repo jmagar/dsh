@@ -4,7 +4,7 @@ import {
   LogLevel,
   LogMetadata,
   AgentMetadata,
-  createLogMetadata,
+  createLogMetadata as sharedCreateLogMetadata,
   BaseMetadata,
 } from '@dsh/shared';
 import type { ErrorInfo } from 'react';
@@ -46,7 +46,7 @@ class BrowserLogger implements Logger {
     return {
       level,
       message,
-      metadata: createLogMetadata(this.service, this.environment, {
+      metadata: sharedCreateLogMetadata(this.service, this.environment, {
         userAgent: navigator.userAgent,
         url: window.location.href,
         ...metadata,
@@ -170,3 +170,5 @@ export const logger = new BrowserLogger('dsh-frontend', process.env.NODE_ENV ?? 
 export function logError(error: Error, errorInfo: ErrorInfo): void {
   logger.logError(error, errorInfo);
 }
+
+export { sharedCreateLogMetadata as createLogMetadata };

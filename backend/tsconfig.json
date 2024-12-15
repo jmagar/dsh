@@ -4,8 +4,9 @@
     "outDir": "../dist/backend",
     "rootDir": ".",
     "composite": true,
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "target": "es2022",
     "esModuleInterop": true
   },
   "include": ["src/**/*"],

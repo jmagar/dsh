@@ -45,7 +45,7 @@ export const SystemStatus: React.FC = () => {
 
   const fetchStatus = useCallback(async (): Promise<void> => {
     try {
-      const response = await axios.get<SystemStatus>('http://localhost:3000/health');
+      const response = await axios.get<SystemStatus>(`${process.env.REACT_APP_API_URL}/health`);
       setStatus(response.data);
       setError(null);
     } catch (err) {

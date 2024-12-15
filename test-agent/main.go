@@ -32,11 +32,14 @@ type OSInfo struct {
 }
 
 func main() {
-	serverAddr := flag.String("server", "localhost:3000", "DSH server address")
+	host := flag.String("host", "localhost", "DSH server host")
+	port := flag.Int("port", 3001, "DSH server port")
 	flag.Parse()
 
+	serverAddr := fmt.Sprintf("%s:%d", *host, *port)
+
 	// Create WebSocket URL
-	u := url.URL{Scheme: "ws", Host: *serverAddr, Path: "/ws/agent"}
+	u := url.URL{Scheme: "ws", Host: serverAddr, Path: "/ws/agent"}
 	log.Printf("Connecting to %s", u.String())
 
 	// Connect to WebSocket server

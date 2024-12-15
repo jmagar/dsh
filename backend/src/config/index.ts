@@ -12,7 +12,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(15 * 60 * 1000),
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().positive().default(100)
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().positive().default(100),
+  FRONTEND_URL: z.string().url().optional()
 });
 
 // Parse and validate environment variables
@@ -23,7 +24,8 @@ const parsedEnv = envSchema.safeParse({
   REDIS_URL: process.env.REDIS_URL,
   JWT_SECRET: process.env.JWT_SECRET,
   RATE_LIMIT_WINDOW_MS: process.env.RATE_LIMIT_WINDOW_MS,
-  RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS
+  RATE_LIMIT_MAX_REQUESTS: process.env.RATE_LIMIT_MAX_REQUESTS,
+  FRONTEND_URL: process.env.FRONTEND_URL
 });
 
 // Throw error if validation fails
@@ -31,8 +33,31 @@ if (!parsedEnv.success) {
   throw new Error(`Invalid environment configuration: ${parsedEnv.error.message}`);
 }
 
+// Define configuration type
+type ConfigType = {
+  env: string;
+  isProduction: boolean;
+  isDevelopment: boolean;
+  isTest: boolean;
+  server: {
+    port: number;
+    frontendUrl: string;
+    rateLimitWindowMs: number;
+    rateLimitMaxRequests: number;
+  };
+  database: {
+    url: string;
+  };
+  redis: {
+    url: string;
+  };
+  jwt: {
+    secret: string;
+  };
+};
+
 // Export validated configuration
-export const config = {
+export const config: ConfigType = {
   env: parsedEnv.data.NODE_ENV,
   isProduction: parsedEnv.data.NODE_ENV === 'production',
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
@@ -40,6 +65,9 @@ export const config = {
 
   server: {
     port: parsedEnv.data.PORT,
+    frontendUrl: parsedEnv.data.FRONTEND_URL || 'http://localhost:3000',
+    rateLimitWindowMs: parsedEnv.data.RATE_LIMIT_WINDOW_MS,
+    rateLimitMaxRequests: parsedEnv.data.RATE_LIMIT_MAX_REQUESTS,
   },
 
   database: {
@@ -50,12 +78,7 @@ export const config = {
     url: parsedEnv.data.REDIS_URL,
   },
 
-  security: {
-    jwtSecret: parsedEnv.data.JWT_SECRET,
-  },
-
-  rateLimit: {
-    windowMs: parsedEnv.data.RATE_LIMIT_WINDOW_MS,
-    max: parsedEnv.data.RATE_LIMIT_MAX_REQUESTS,
-  },
-} as const;
+  jwt: {
+    secret: parsedEnv.data.JWT_SECRET,
+  }
+};

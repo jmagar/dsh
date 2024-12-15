@@ -34,11 +34,11 @@ export class AgentMonitor {
     return AgentMonitor.instance;
   }
 
-  async handleMetrics(hostname: string, metrics: AgentMetrics): Promise<void> {
+  async handleMetrics(serverId: string, metrics: AgentMetrics): Promise<void> {
     try {
       // Validate input
-      if (!hostname) {
-        throw new Error('Hostname is required');
+      if (!serverId) {
+        throw new Error('Server ID is required');
       }
 
       // Convert timestamp to number if it's a string
@@ -50,7 +50,7 @@ export class AgentMonitor {
 
       // Prepare metric data with safe defaults
       const metricData = {
-        serverId: hostname,
+        serverId,
         type: 'agent_metrics',
         value: metrics.cpu?.usage ?? 0,
         timestamp: new Date(timestamp),
@@ -64,12 +64,12 @@ export class AgentMonitor {
       // Prepare cache data with normalized timestamp
       const cacheData = JSON.stringify({
         ...metrics,
-        hostname,
+        serverId,
         timestamp,
       });
 
       // Cache latest metrics in Redis with TTL
-      const cacheKey = `metrics:${hostname}:latest`;
+      const cacheKey = `metrics:${serverId}:latest`;
       await this.redis.set(
         cacheKey,
         cacheData,
@@ -100,15 +100,15 @@ export class AgentMonitor {
     }
   }
 
-  async getLatestMetrics(hostname: string): Promise<AgentMetrics | null> {
-    if (!hostname) {
-      const logMetadata = createLogMetadata('agent-monitor', new Error('Empty hostname'));
-      logger.warn('Attempted to get metrics with empty hostname', logMetadata);
+  async getLatestMetrics(serverId: string): Promise<AgentMetrics | null> {
+    if (!serverId) {
+      const logMetadata = createLogMetadata('agent-monitor', new Error('Empty server ID'));
+      logger.warn('Attempted to get metrics with empty server ID', logMetadata);
       return null;
     }
 
     try {
-      const cacheKey = `metrics:${hostname}:latest`;
+      const cacheKey = `metrics:${serverId}:latest`;
       const cached = await this.redis.get(cacheKey);
 
       if (typeof cached === 'string' && cached.trim() !== '') {
@@ -135,7 +135,7 @@ export class AgentMonitor {
       // Fetch from database if no valid cache
       const latest = await this.db.metric.findFirst({
         where: {
-          serverId: hostname,
+          serverId,
           type: 'agent_metrics',
         },
         orderBy: {
@@ -172,7 +172,7 @@ export class AgentMonitor {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       const logMetadata = createLogMetadata('agent-monitor', error, {
-        metrics: { hostname_length: hostname.length },
+        metrics: { serverId_length: serverId.length },
       });
       logger.error('Failed to get latest metrics', logMetadata);
       throw error;
@@ -181,7 +181,11 @@ export class AgentMonitor {
 }
 
 // Create singleton instance
-export const agentMonitor = AgentMonitor.getInstance(
-  DatabaseClient.getInstance(),
-  RedisClient.getInstance()
-);
+async function initializeAgentMonitor() {
+  return AgentMonitor.getInstance(
+    await DatabaseClient.getInstance(),
+    await RedisClient.getInstance()
+  );
+}
+
+export const agentMonitorPromise = initializeAgentMonitor();

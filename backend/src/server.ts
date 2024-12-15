@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { createServer as createHttpServer } from 'http';
 
 import compression from 'compression';
-import cors from 'cors';
 import express, { json, urlencoded } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
@@ -12,9 +11,9 @@ import { Server as SocketServer } from 'socket.io';
 import { config } from './config';
 import { setupAgentRoutes } from './routes/agent';
 import { setupHealthRoutes } from './routes/health';
-import { AgentMonitor } from './utils/agent';
-import { db } from './utils/db';
+import { initializeDb } from './utils/db';
 import { logger } from './utils/logger';
+import { agentMonitorPromise } from './utils/agent';
 import { redis } from './utils/redis';
 
 interface SocketData {
@@ -41,106 +40,157 @@ type SocketIOServer = SocketServer<
   };
 };
 
-export function createServer(): express.Application {
+export async function createServer(): Promise<express.Application> {
   const app = express();
+
+  // Define server configuration type
+  interface ServerConfig {
+    port: number;
+    frontendUrl: string;
+    rateLimitWindowMs: number;
+    rateLimitMaxRequests: number;
+  }
+
+  // Explicitly type config.server
+  const serverConfig: ServerConfig = {
+    port: (config.server as any).port,
+    frontendUrl: (config.server as any).frontendUrl,
+    rateLimitWindowMs: (config.server as any).rateLimitWindowMs,
+    rateLimitMaxRequests: (config.server as any).rateLimitMaxRequests
+  };
 
   // Security middleware
   app.use(helmet());
-  app.use(
-    cors({
-      origin: config.server.frontendUrl,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-    })
-  );
-  app.use(
-    rateLimit({
-      windowMs: config.rateLimit.windowMs,
-      max: config.rateLimit.max,
-    })
-  );
+  // CORS DISABLED
+  // app.use(
+  //   cors({
+  //     origin: [
+  //       serverConfig.frontendUrl, 
+  //       'http://localhost:3000',  
+  //       'http://127.0.0.1:3000'   
+  //     ],
+  //     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  //     allowedHeaders: ['Content-Type', 'Authorization'],
+  //     credentials: true
+  //   })
+  // );
 
-  // Request handling middleware
+  // Compression middleware
   app.use(compression());
-  app.use(json());
-  app.use(urlencoded({ extended: true }));
-  app.use(logger.requestLogger());
 
-  // Error handling
-  app.use(logger.errorLogger());
+  // Body parsing middleware
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-  // Create HTTP server
-  const server = createHttpServer(app);
+  // Rate limiting middleware
+  const limiter = rateLimit({
+    windowMs: serverConfig.rateLimitWindowMs,
+    max: serverConfig.rateLimitMaxRequests,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(limiter);
 
-  // Socket.IO setup with proper typing
+  // WebSocket server
+  const httpServer = createHttpServer(app);
   const io = new SocketServer<
     Record<string, never>,
     Record<string, never>,
     Record<string, never>,
     SocketData
-  >(server, {
+  >(httpServer, {
     cors: {
-      origin: config.server.frontendUrl,
-      methods: ['GET', 'POST'],
-      credentials: true,
+      origin: serverConfig.frontendUrl,
     },
   }) as SocketIOServer;
 
-  const agentMonitor = AgentMonitor.getInstance(db, redis);
+  // Async initialization of dependencies
+  async function setupDependencies() {
+    const db = await initializeDb();
+    const agentMonitor = await agentMonitorPromise;
 
-  // Add routes
-  const healthRoutes = setupHealthRoutes(db, redis);
-  const agentRoutes = setupAgentRoutes(io, db, redis, agentMonitor);
+    // Add routes
+    const healthRoutes = setupHealthRoutes(db, redis);
+    const agentRoutes = setupAgentRoutes(db, redis, agentMonitor);
 
-  app.use('/health', healthRoutes);
-  app.use('/agent', agentRoutes);
+    app.use('/health', healthRoutes);
+    app.use('/', agentRoutes);
 
-  // Socket authentication middleware (for non-agent connections)
-  io.of('/').use((socket, next) => {
-    const auth = socket.handshake.auth as SocketAuth;
-    if (!auth?.token || typeof auth.token !== 'string') {
-      next(new Error('Authentication required'));
-      return;
-    }
+    // Handle WebSocket upgrades
+    httpServer.on('upgrade', (request, socket, head) => {
+      const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
 
-    try {
-      const decoded = verify(auth.token, config.jwt.secret) as SocketData['user'];
-      socket.data = { user: decoded };
-      next();
-    } catch (error) {
-      next(new Error('Invalid authentication token'));
-    }
-  });
+      if (pathname === '/ws/agent') {
+        logger.info('WebSocket upgrade request received', {
+          component: 'server',
+          url: pathname,
+          metrics: {
+            connections: io.engine.clientsCount,
+          },
+        });
+        // Let the agent route handle the upgrade
+        app._router.handle(request, socket as any, head);
+      } else {
+        // Close the connection for unhandled upgrade requests
+        socket.destroy();
+      }
+    });
 
-  // Socket connection handling
-  io.on('connection', socket => {
-    logger.info('Socket connected', {
+    // Socket authentication middleware (for non-agent connections)
+    io.of('/').use((socket, next) => {
+      const auth = socket.handshake.auth as SocketAuth;
+      if (!auth?.token || typeof auth.token !== 'string') {
+        next(new Error('Authentication required'));
+        return;
+      }
+
+      try {
+        const decoded = verify(auth.token, config.jwt.secret) as SocketData['user'];
+        socket.data = { user: decoded };
+        next();
+      } catch (error) {
+        next(new Error('Invalid authentication token'));
+      }
+    });
+
+    // Socket connection handling
+    io.on('connection', socket => {
+      logger.info('Socket connected', {
+        component: 'server',
+        metrics: {
+          socketConnections: io.engine.clientsCount,
+        },
+      });
+
+      socket.on('error', (error: unknown) => {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        logger.error('Socket error', {
+          component: 'server',
+          error: errorObj,
+          metrics: {
+            socketConnections: io.engine.clientsCount,
+          },
+        });
+      });
+
+      socket.on('disconnect', () => {
+        logger.info('Socket disconnected', {
+          component: 'server',
+          metrics: {
+            socketConnections: io.engine.clientsCount,
+          },
+        });
+      });
+    });
+  }
+
+  // Call setup dependencies
+  await setupDependencies().catch(error => {
+    logger.error('Failed to setup dependencies', {
       component: 'server',
-      metrics: {
-        socketConnections: io.engine.clientsCount,
-      },
+      error: error instanceof Error ? error : new Error(String(error))
     });
-
-    socket.on('error', (error: unknown) => {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      logger.error('Socket error', {
-        component: 'server',
-        error: errorObj,
-        metrics: {
-          socketConnections: io.engine.clientsCount,
-        },
-      });
-    });
-
-    socket.on('disconnect', () => {
-      logger.info('Socket disconnected', {
-        component: 'server',
-        metrics: {
-          socketConnections: io.engine.clientsCount,
-        },
-      });
-    });
+    process.exit(1);
   });
 
   return app;

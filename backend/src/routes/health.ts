@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 
 import { logger } from '../utils/logger';
 import { RedisClient } from '../utils/redis';
+import { config } from '../config';
 
 interface HealthStatus {
   status: 'healthy' | 'unhealthy';
@@ -14,7 +15,11 @@ interface HealthStatus {
 }
 
 const pool = new Pool({
-  connectionString: 'postgres://postgres:postgres@127.0.0.1:5432/dsh',
+  connectionString: config.database.url,
+  ssl: false, // Explicitly disable SSL for local development
+  max: 10, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle
+  connectionTimeoutMillis: 5000, // How long to wait when requesting a connection
 });
 
 export function setupHealthRoutes(_db: any, redis: RedisClient): Router {
@@ -33,15 +38,32 @@ export function setupHealthRoutes(_db: any, redis: RedisClient): Router {
 
         const databaseCheck = async (): Promise<void> => {
           try {
+            logger.info('Attempting to connect to database', {
+              component: 'health',
+              query: config.database.url.replace(/:[^:]*@/, ':****@'), // Mask password
+            });
+
             const client = await pool.connect();
             try {
+              const startTime = Date.now();
               await client.query('SELECT 1');
+              const duration = Date.now() - startTime;
+
+              logger.info('Database connection successful', {
+                component: 'health',
+                duration,
+              });
             } finally {
               client.release();
             }
           } catch (error) {
-            const errorObj =
-              error instanceof Error ? error : new Error('Database connection failed');
+            const errorObj = error instanceof Error ? error : new Error('Database connection failed');
+
+            logger.error('Database health check failed', {
+              component: 'health',
+              error: errorObj,
+              query: config.database.url.replace(/:[^:]*@/, ':****@'), // Mask password
+            });
 
             status.status = 'unhealthy';
             status.details = {
@@ -49,19 +71,32 @@ export function setupHealthRoutes(_db: any, redis: RedisClient): Router {
               database: false,
               error: errorObj.message,
             };
-
-            logger.error('Database health check failed', {
-              component: 'health',
-              error: errorObj,
-            });
           }
         };
 
         const redisCheck = async (): Promise<void> => {
           try {
+            logger.info('Attempting to connect to Redis', {
+              component: 'health',
+              query: config.redis.url.replace(/:[^:]*@/, ':****@'), // Mask password
+            });
+
+            const startTime = Date.now();
             await redis.ping();
+            const duration = Date.now() - startTime;
+
+            logger.info('Redis connection successful', {
+              component: 'health',
+              duration,
+            });
           } catch (error) {
             const errorObj = error instanceof Error ? error : new Error('Redis connection failed');
+
+            logger.error('Redis health check failed', {
+              component: 'health',
+              error: errorObj,
+              query: config.redis.url.replace(/:[^:]*@/, ':****@'), // Mask password
+            });
 
             status.status = 'unhealthy';
             status.details = {
@@ -69,11 +104,6 @@ export function setupHealthRoutes(_db: any, redis: RedisClient): Router {
               redis: false,
               error: errorObj.message,
             };
-
-            logger.error('Redis health check failed', {
-              component: 'health',
-              error: errorObj,
-            });
           }
         };
 

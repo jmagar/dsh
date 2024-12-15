@@ -98,12 +98,28 @@ export class DatabaseClient extends PrismaClient<Prisma.PrismaClientOptions, 'qu
     });
   }
 
-  public static getInstance(): DatabaseClient {
+  public static async getInstance(): Promise<DatabaseClient> {
     if (!DatabaseClient.instance) {
       DatabaseClient.instance = new DatabaseClient();
+      try {
+        // Test database connection
+        await DatabaseClient.instance.$connect();
+        logger.info('Database connected successfully', {
+          component: 'database',
+          metrics: {
+            timestamp: Date.now()
+          }
+        });
+      } catch (error) {
+        logger.error('Failed to connect to database', {
+          component: 'database',
+          error: error instanceof Error ? error : new Error(String(error))
+        });
+        throw error;
+      }
     }
     return DatabaseClient.instance;
   }
 }
 
-export const db = DatabaseClient.getInstance();
+export const initializeDb = () => DatabaseClient.getInstance();

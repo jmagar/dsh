@@ -40,7 +40,16 @@
     "commit": "cz",
     "postinstall": "npm run prepare",
     "docs": "typedoc --out docs/api src",
-    "test:watch": "ts-node node_modules/jest/bin/jest.js --watch"
+    "test:watch": "ts-node node_modules/jest/bin/jest.js --watch",
+    "stop:frontend": "kill-port 3000",
+    "stop:backend": "kill-port 3001",
+    "stop:all": "npm run stop:frontend && npm run stop:backend",
+    "prisma:generate": "npm run stop:all && cd backend && npm run prisma:generate",
+    "start:frontend": "npm run start -w frontend",
+    "start:backend": "npm run start -w backend",
+    "restart:frontend": "npm run stop:frontend && npm run start:frontend",
+    "restart:backend": "npm run stop:backend && npm run start:backend",
+    "restart": "npm run stop:frontend && npm run stop:backend && npm run start:backend && npm run start:frontend"
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.14.5",
@@ -61,6 +70,7 @@
     "eslint-plugin-security": "^2.1.0",
     "jest": "^29.7.0",
     "jsonwebtoken": "^9.0.2",
+    "kill-port": "^2.0.1",
     "lint-staged": "^15.2.0",
     "node-html-parser": "^6.1.13",
     "prettier": "^3.2.4",

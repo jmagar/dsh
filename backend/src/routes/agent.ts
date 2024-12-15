@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { Server as SocketServer } from 'socket.io';
+import { WebSocket } from 'ws';
 import { DatabaseClient } from '../utils/db';
 import { RedisClient } from '../utils/redis';
 import { AgentMonitor } from '../utils/agent';
 import { logger } from '../utils/logger';
-import { WebSocket } from 'ws';
+import { createLogMetadata } from '@dsh/shared';
 
 interface SystemMetrics {
   hostname: string;
@@ -15,12 +15,12 @@ interface SystemMetrics {
     platform: string;
     os: string;
     arch: string;
+    release?: string;
   };
   timestamp: string;
 }
 
 export function setupAgentRoutes(
-  io: SocketServer,
   db: DatabaseClient,
   redis: RedisClient,
   agentMonitor: AgentMonitor
@@ -29,7 +29,7 @@ export function setupAgentRoutes(
   const wss = new WebSocket.Server({ noServer: true });
 
   // Handle WebSocket upgrade
-  router.get('/ws', (req, res) => {
+  router.get('/ws/agent', (req, res) => {
     if (!req.headers.upgrade || req.headers.upgrade.toLowerCase() !== 'websocket') {
       return res.status(400).json({ error: 'Expected WebSocket connection' });
     }
@@ -38,21 +38,41 @@ export function setupAgentRoutes(
     wss.handleUpgrade(req, req.socket, Buffer.alloc(0), ws => {
       wss.emit('connection', ws, req);
     });
+    return undefined;
   });
 
   // Handle WebSocket connections
-  wss.on('connection', async ws => {
-    logger.info('Agent connected', {
-      component: 'agent',
-      metrics: {
-        connections: wss.clients.size,
-      },
-    });
+  wss.on('connection', async (ws: WebSocket & { remoteAddress?: string, remotePort?: number }) => {
+    let agentId: string | null = null;
+
+    logger.info('Agent WebSocket Connected', 
+      createLogMetadata('dsh-backend', 'development', {
+        component: 'agent-websocket',
+        metrics: {
+          connections: Number(wss.clients.size)
+        }
+      })
+    );
 
     // Handle incoming messages
-    ws.on('message', async data => {
+    ws.on('message', async (data: Buffer) => {
       try {
-        const metrics = JSON.parse(data.toString()) as SystemMetrics;
+        const rawMetricsStr = data.toString();
+        logger.info('Received Agent Metrics', 
+          createLogMetadata('dsh-backend', 'development', {
+            component: 'agent-websocket',
+            metrics: {
+              messageSize: rawMetricsStr.length
+            }
+          })
+        );
+
+        const rawMetrics = JSON.parse(rawMetricsStr);
+        const metrics: SystemMetrics = {
+          ...rawMetrics,
+          cpuUsage: Number(rawMetrics.cpuUsage),
+          memoryUsage: Number(rawMetrics.memoryUsage),
+        };
 
         // Find or create server
         const server = await db.server.upsert({
@@ -67,64 +87,81 @@ export function setupAgentRoutes(
             hostname: metrics.hostname,
             ipAddress: metrics.ipAddress,
             status: 'online',
-            osInfo: metrics.osInfo,
+            osInfo: {
+              ...metrics.osInfo,
+              release: metrics.osInfo.release,
+            },
           },
           update: {
             lastSeen: new Date(),
             status: 'online',
-            osInfo: metrics.osInfo,
+            osInfo: {
+              ...metrics.osInfo,
+              release: metrics.osInfo.release,
+            },
           },
         });
 
-        // Create CPU metric
-        await db.metric.create({
-          data: {
-            type: 'cpu',
-            value: Number(metrics.cpuUsage),
-            serverId: server.id,
-          },
-        });
+        // Store agent ID for cleanup
+        agentId = server.id;
 
-        // Create memory metric
-        await db.metric.create({
-          data: {
-            type: 'memory',
-            value: Number(metrics.memoryUsage),
-            serverId: server.id,
-          },
-        });
+        // Update agent status in Redis
+        await redis.set(`agent:${server.id}:status`, 'online');
+        await redis.set(`agent:${server.id}:lastSeen`, new Date().toISOString());
 
-        // Emit metrics to connected clients
-        io.emit('agent:metrics', {
-          serverId: server.id,
-          ...metrics,
-        });
-
-        logger.info('Received metrics from agent', {
-          component: 'agent',
-          metrics: {
-            hostname: metrics.hostname,
-            cpuUsage: metrics.cpuUsage,
-            memoryUsage: metrics.memoryUsage,
+        // Send metrics to agent monitor
+        await agentMonitor.handleMetrics(server.id, {
+          cpu: { usage: metrics.cpuUsage },
+          memory: {
+            used: metrics.memoryUsage,
+            total: 100, // Assuming memoryUsage is a percentage
           },
+          os: {
+            platform: metrics.osInfo.platform,
+            release: metrics.osInfo.release || metrics.osInfo.platform,
+          },
+          timestamp: Date.now(),
         });
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Unknown error processing metrics');
-        logger.error('Error processing agent metrics', {
-          component: 'agent',
-          error,
-        });
+      } catch (error) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        
+        logger.error('Error Processing WebSocket Message', 
+          createLogMetadata('dsh-backend', errorObj, {
+            component: 'agent-websocket'
+          })
+        );
       }
     });
 
     // Handle disconnection
     ws.on('close', () => {
-      logger.info('Agent disconnected', {
-        component: 'agent',
-        metrics: {
-          connections: wss.clients.size,
-        },
-      });
+      if (agentId) {
+        // Update agent status in Redis
+        void redis.set(`agent:${agentId}:status`, 'offline');
+
+        // Update server status in database
+        void db.server.update({
+          where: { id: agentId },
+          data: { status: 'offline' },
+        });
+      }
+
+      logger.info('Agent WebSocket Disconnected', 
+        createLogMetadata('dsh-backend', 'development', {
+          component: 'agent-websocket',
+          metrics: {
+            connections: Number(wss.clients.size)
+          }
+        })
+      );
+    });
+
+    ws.on('error', (error: Error) => {
+      logger.error('Agent WebSocket Error', 
+        createLogMetadata('dsh-backend', error.message, {
+          component: 'agent-websocket'
+        })
+      );
     });
   });
 
