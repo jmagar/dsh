@@ -3,9 +3,9 @@
 ## Overall Progress
 - [x] Phase 1: Analysis and Backup
 - [x] Phase 2: Directory Structure Creation
-- [ ] Phase 3: Type Reorganization
-- [ ] Phase 4: Component Reorganization
-- [ ] Phase 5: Hook Extraction
+- [x] Phase 3: Type Reorganization
+- [x] Phase 4: Component Reorganization
+- [x] Phase 5: Hook Extraction
 - [ ] Phase 6: Constants Extraction
 - [ ] Phase 7: Service Layer Enhancement
 - [ ] Phase 8: Testing Setup
@@ -30,33 +30,38 @@
 - [x] Create index files
 
 ### Phase 3: Type Reorganization
-- [ ] Create metrics.types.ts
-- [ ] Create logger.types.ts
-- [ ] Create a11y.types.ts
-- [ ] Create components.types.ts
-- [ ] Update imports
+- [x] Create metrics.types.ts
+- [x] Create logger.types.ts
+- [x] Create a11y.types.ts
+- [x] Create components.types.ts
+- [x] Update imports
 
 ### Phase 4: Component Reorganization
-- [ ] SystemStatus component
-  - [ ] Create directory structure
-  - [ ] Move component
-  - [ ] Create tests
-  - [ ] Create styles
-- [ ] EnvTest component
-  - [ ] Create directory structure
-  - [ ] Move component
-  - [ ] Create tests
-- [ ] AgentMetrics page
-  - [ ] Create directory structure
-  - [ ] Move component
-  - [ ] Create tests
-  - [ ] Create subcomponents
+- [x] SystemStatus component
+  - [x] Create directory structure
+  - [x] Move component
+  - [x] Create tests
+  - [x] Create styles
+- [x] EnvTest component
+  - [x] Create directory structure
+  - [x] Move component
+  - [x] Create tests
+  - [x] Create styles
+- [x] AgentMetrics component
+  - [x] Create directory structure
+  - [x] Move component
+  - [x] Create tests
+  - [x] Create styles
 
 ### Phase 5: Hook Extraction
-- [ ] Create useMetrics hook
-- [ ] Create useWebSocket hook
-- [ ] Create useSystemStatus hook
-- [ ] Update components to use hooks
+- [x] Create useSystemStatus hook
+  - [x] Extract logic from SystemStatus component
+  - [x] Create tests
+  - [x] Update component to use hook
+- [x] Create useMetrics hook
+  - [x] Extract logic from AgentMetrics component
+  - [x] Create tests
+  - [x] Update component to use hook
 
 ### Phase 6: Constants Extraction
 - [ ] Create metrics constants
@@ -107,4 +112,7 @@
 ## Current Status
  Completed Phase 1: Analysis and Backup
  Completed Phase 2: Directory Structure Creation
- Starting Phase 3: Type Reorganization
+ Completed Phase 3: Type Reorganization
+ Completed Phase 4: Component Reorganization
+ Completed Phase 5: Hook Extraction
+ Starting Phase 6: Constants Extraction

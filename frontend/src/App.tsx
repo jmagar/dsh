@@ -1,9 +1,13 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-import { EnvTest } from './components/EnvTest';
-import SystemStatus from './components/SystemStatus';
-import AgentMetrics from './pages/AgentMetrics';
+import {
+  AgentMetrics,
+  EnvTest,
+  MetricsOverview,
+  Servers,
+  SystemStatus,
+} from './pages';
 import './styles/global.css';
 
 const App: React.FC = () => {
@@ -16,8 +20,8 @@ const App: React.FC = () => {
         <main>
           <Routes>
             <Route path="/" element={<SystemStatus />} />
-            <Route path="/servers" element={<div>Servers List</div>} />
-            <Route path="/metrics" element={<div>Metrics Overview</div>} />
+            <Route path="/servers" element={<Servers />} />
+            <Route path="/metrics" element={<MetricsOverview />} />
             <Route path="/env-test" element={<EnvTest />} />
             <Route path="/agent" element={<AgentMetrics />} />
           </Routes>
