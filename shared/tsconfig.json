@@ -8,7 +8,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "module": "ES2020",
+    "module": "CommonJS",
     "moduleResolution": "node",
     "paths": {
       "*": ["src/*"]

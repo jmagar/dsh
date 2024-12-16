@@ -66,7 +66,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	resp, err := http.Post(backendURL+"/api/agents/register", "application/json", bytes.NewBuffer(regBody))
+	resp, err := http.Post(backendURL+"/register", "application/json", bytes.NewBuffer(regBody))
 	if err != nil {
 		fmt.Printf("Error registering with backend: %v\n", err)
 		os.Exit(1)
@@ -107,7 +107,7 @@ func main() {
 			continue
 		}
 
-		resp, err := http.Post(fmt.Sprintf("%s/api/agents/%s/metrics", backendURL, agentID), "application/json", bytes.NewBuffer(metricsBody))
+		resp, err := http.Post(fmt.Sprintf("%s/%s/metrics", backendURL, agentID), "application/json", bytes.NewBuffer(metricsBody))
 		if err != nil {
 			fmt.Printf("Error sending metrics: %v\n", err)
 			continue
