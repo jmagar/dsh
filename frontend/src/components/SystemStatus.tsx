@@ -19,28 +19,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 // Internal dependencies
 import { apiClient } from '../services/api';
-
-interface SystemStatusData {
-  status: 'healthy' | 'unhealthy';
-  details?: {
-    database?: boolean;
-    redis?: boolean;
-    error?: string;
-  };
-  agents: AgentStatus[];
-  agentMetrics: Record<string, SystemMetrics>;
-}
-
-interface ServiceStatusCardProps {
-  name: string;
-  isHealthy: boolean;
-  error?: string | undefined;
-}
-
-interface AgentStatusCardProps {
-  agent: AgentStatus & { osInfo: { platform: string; os: string; arch: string; release?: string } };
-  metrics?: SystemMetrics | null;
-}
+import { SystemStatusData, ServiceStatusCardProps, AgentStatusCardProps } from '../types/components.types';
 
 // Helper function to handle nullable strings
 function getErrorMessage(error: string | null | undefined): string | null {

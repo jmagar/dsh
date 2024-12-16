@@ -3,6 +3,7 @@ import { MetricType, MetricLabels, createLabels } from '@dsh/shared';
 
 // Internal dependencies
 import { logger } from './logger';
+import { BaseMetric, MetricPayload, BrowserMetricData } from '../types/metrics.types';
 
 interface BaseMetric {
   name: string;
@@ -18,14 +19,7 @@ interface MetricPayload {
 }
 
 class BrowserMetrics {
-  private metrics: Map<
-    string,
-    {
-      type: MetricType;
-      value: number;
-      labels: MetricLabels;
-    }
-  > = new Map();
+  private metrics: Map<string, BrowserMetricData> = new Map();
 
   constructor(
     private readonly namespace: string,

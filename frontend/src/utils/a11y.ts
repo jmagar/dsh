@@ -5,6 +5,7 @@ import type { HTMLElement } from 'node-html-parser';
 import { parse } from 'node-html-parser';
 
 import { logger } from './logger';
+import { A11yCheck } from '../types/a11y.types';
 
 export interface A11yCheck {
   element: string;
