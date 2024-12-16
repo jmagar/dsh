@@ -1,38 +1,53 @@
 import { useEffect, useState } from 'react';
 
-import { getSystemMetrics } from '@dsh/shared/types/metrics';
-import { createLogMetadata } from '../utils/logger';
-import { logger } from '../utils/logger';
-import { MetricsState } from '../components/AgentConnectionManager/types';
+import { AgentMetrics } from '../components/AgentManager/types';
+import { createLogMetadata, logger } from '../utils/logger';
 
-function isError(error: unknown): error is Error {
-  return error instanceof Error;
+interface UseMetricsResult {
+  status: 'idle' | 'loading' | 'error' | 'success';
+  data: AgentMetrics | null;
+  error?: string;
 }
 
-export function useMetrics() {
-  const [metricsState, setMetricsState] = useState<MetricsState>({
+export function useMetrics(agentId: string | null): UseMetricsResult {
+  const [state, setState] = useState<UseMetricsResult>({
+    status: 'idle',
     data: null,
-    status: 'loading',
   });
 
   useEffect(() => {
+    if (agentId === null || agentId === '') {
+      setState({ status: 'idle', data: null });
+      return;
+    }
+
     const logMetadata = createLogMetadata('useMetrics');
 
-    const fetchMetrics = async () => {
+    const fetchMetrics = async (): Promise<void> => {
       try {
-        const metrics = await getSystemMetrics();
-        setMetricsState({ data: metrics, status: 'success' });
+        setState(prev => ({ ...prev, status: 'loading' }));
+
+        const response = await fetch(`/api/agents/${agentId}/metrics`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch metrics');
+        }
+
+        const data = (await response.json()) as AgentMetrics;
+        setState({ status: 'success', data });
       } catch (error) {
-        logger.error(
-          logMetadata,
-          isError(error) ? error.message : 'Unknown error fetching metrics',
-        );
-        setMetricsState({ data: null, status: 'error' });
+        logger.error('Failed to fetch metrics', {
+          ...logMetadata,
+          error: error instanceof Error ? error : new Error('Unknown error'),
+        });
+        setState({ status: 'error', data: null, error: 'Failed to fetch metrics' });
       }
     };
 
     void fetchMetrics();
-  }, []);
 
-  return metricsState;
+    const interval = setInterval(() => void fetchMetrics(), 5000);
+    return () => clearInterval(interval);
+  }, [agentId]);
+
+  return state;
 }

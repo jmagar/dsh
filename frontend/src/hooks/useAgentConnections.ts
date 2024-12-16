@@ -1,11 +1,24 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Agent, AgentConnection } from '@/client/types/agent.types';
+
+import { AgentConnection } from '../components/AgentManager/types';
+
+interface UseAgentConnectionsResult {
+  connections: AgentConnection[];
+  loading: boolean;
+  error: string | null;
+  connectAgent: (agent: AgentConnection) => Promise<void>;
+  disconnectAgent: (agentId: string) => Promise<void>;
+  testConnection: (agent: AgentConnection) => Promise<{ success: boolean; message: string }>;
+  refreshConnections: () => Promise<void>;
+}
 
 interface UseAgentConnectionsProps {
   refreshInterval?: number;
 }
 
-export function useAgentConnections({ refreshInterval = 5000 }: UseAgentConnectionsProps = {}) {
+export function useAgentConnections({
+  refreshInterval = 5000,
+}: UseAgentConnectionsProps = {}): UseAgentConnectionsResult {
   const [connections, setConnections] = useState<AgentConnection[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +33,7 @@ export function useAgentConnections({ refreshInterval = 5000 }: UseAgentConnecti
         throw new Error('Failed to fetch agent connections');
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as AgentConnection[];
       setConnections(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch agent connections');
@@ -29,75 +42,85 @@ export function useAgentConnections({ refreshInterval = 5000 }: UseAgentConnecti
     }
   }, []);
 
-  const connectAgent = useCallback(async (agent: Agent) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const connectAgent = useCallback(
+    async (agent: AgentConnection) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const response = await fetch('/api/agents/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
-      });
+        const response = await fetch('/api/agents/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to connect agent');
+        if (!response.ok) {
+          throw new Error('Failed to connect agent');
+        }
+
+        await fetchConnections();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to connect agent');
+        throw err;
+      } finally {
+        setLoading(false);
       }
+    },
+    [fetchConnections]
+  );
 
-      await fetchConnections();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect agent');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchConnections]);
+  const disconnectAgent = useCallback(
+    async (agentId: string) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const disconnectAgent = useCallback(async (agentId: string) => {
-    try {
-      setLoading(true);
-      setError(null);
+        const response = await fetch(`/api/agents/${agentId}/disconnect`, {
+          method: 'POST',
+        });
 
-      const response = await fetch(`/api/agents/${agentId}/disconnect`, {
-        method: 'POST',
-      });
+        if (!response.ok) {
+          throw new Error('Failed to disconnect agent');
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to disconnect agent');
+        await fetchConnections();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to disconnect agent');
+        throw err;
+      } finally {
+        setLoading(false);
       }
+    },
+    [fetchConnections]
+  );
 
-      await fetchConnections();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect agent');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchConnections]);
+  const testConnection = useCallback(
+    async (agent: AgentConnection): Promise<{ success: boolean; message: string }> => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const testConnection = useCallback(async (agent: Agent) => {
-    try {
-      setLoading(true);
-      setError(null);
+        const response = await fetch('/api/agents/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        });
 
-      const response = await fetch('/api/agents/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
-      });
+        if (!response.ok) {
+          throw new Error('Connection test failed');
+        }
 
-      if (!response.ok) {
-        throw new Error('Connection test failed');
+        const result = await response.json();
+        return { success: true, message: result.message ?? 'Connection test successful' };
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Connection test failed');
+        throw err;
+      } finally {
+        setLoading(false);
       }
-
-      return await response.json();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection test failed');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     void fetchConnections();

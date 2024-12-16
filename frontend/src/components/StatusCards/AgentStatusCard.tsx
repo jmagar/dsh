@@ -1,11 +1,12 @@
 import ComputerIcon from '@mui/icons-material/Computer';
 import { Card, CardContent, Stack, Typography } from '@mui/material';
-import { getSystemMetrics } from '@dsh/shared/types/metrics';
 import React from 'react';
 
-import { AgentStatusCardProps } from '../types';
-import { styles } from '../styles';
-import { formatPercentage } from '../utils';
+import { getSystemMetrics } from '@dsh/shared/types/metrics';
+
+import { AgentStatusCardProps } from './types';
+import { styles } from './styles';
+import { formatPercentage } from './utils';
 
 export const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ agent, metrics }) => {
   const safeMetrics = getSystemMetrics(metrics ?? undefined);

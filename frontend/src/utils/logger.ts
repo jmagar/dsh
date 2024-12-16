@@ -8,6 +8,7 @@ import {
   BaseMetadata,
 } from '@dsh/shared';
 import type { ErrorInfo } from 'react';
+
 import { PerformanceEntry, PerformanceMetadata, NavigationMetadata } from '../types/logger.types';
 
 interface PerformanceEntry {

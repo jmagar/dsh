@@ -1,14 +1,31 @@
 import { Alert, Box, CircularProgress, Grid, Typography } from '@mui/material';
 import React from 'react';
 
-import { useSystemStatus } from '../../hooks';
-import { AgentStatusCard, ServiceStatusCard } from './components';
+import { AgentStatus, AgentMetrics } from '../../../components/AgentManager/types';
+import { AgentStatusCard, ServiceStatusCard } from '../../../components/StatusCards';
+import { useSystemStatus } from '../../../hooks/useSystemStatus';
+
 import { styles } from './styles';
 
-export const SystemStatus: React.FC = () => {
-  const state = useSystemStatus();
+interface SystemStatusData {
+  details: {
+    database: boolean;
+    redis: boolean;
+    error?: string;
+  };
+  agents: AgentStatus[];
+  agentMetrics: Record<string, AgentMetrics>;
+}
 
-  if (state.error) {
+interface SystemStatusState {
+  data: SystemStatusData | null;
+  error: string | null;
+}
+
+export const SystemStatus: React.FC = () => {
+  const state = useSystemStatus() as SystemStatusState;
+
+  if (state.error !== null) {
     return (
       <Alert severity="error" sx={styles.errorAlert}>
         {state.error}
@@ -16,7 +33,7 @@ export const SystemStatus: React.FC = () => {
     );
   }
 
-  if (!state.data) {
+  if (state.data === null) {
     return (
       <Box sx={styles.loading}>
         <CircularProgress />
@@ -52,7 +69,7 @@ export const SystemStatus: React.FC = () => {
         Connected Agents
       </Typography>
 
-      {state.data.agents.map((agent) => (
+      {state.data.agents.map((agent: AgentStatus) => (
         <AgentStatusCard
           key={agent.id}
           agent={agent}
