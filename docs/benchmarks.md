@@ -5,21 +5,21 @@ This document outlines our performance benchmarking strategy and tools.
 ## Frontend Performance
 
 ### Bundle Size Analysis
-We use `bundlesize` to monitor and enforce size limits on our frontend assets:
+We use Vite's built-in bundle analysis and rollup-plugin-visualizer:
 
 ```json
 {
   "files": [
     {
-      "path": "build/static/js/main.*.js",
+      "path": "dist/assets/index.*.js",
       "maxSize": "200 kB"
     },
     {
-      "path": "build/static/js/chunk.*.js",
-      "maxSize": "100 kB"
+      "path": "dist/assets/vendor.*.js",
+      "maxSize": "300 kB"
     },
     {
-      "path": "build/static/css/main.*.css",
+      "path": "dist/assets/index.*.css",
       "maxSize": "50 kB"
     }
   ]
@@ -28,8 +28,8 @@ We use `bundlesize` to monitor and enforce size limits on our frontend assets:
 
 Run bundle analysis:
 ```bash
-npm run build:frontend
-npx bundlesize
+npm run build
+npx vite-bundle-visualizer
 ```
 
 ### Lighthouse Performance

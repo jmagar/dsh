@@ -1,15 +1,14 @@
 /* eslint-disable no-console */
-import {
+import { LogLevel, createLogMetadata as sharedCreateLogMetadata } from '@dsh/shared';
+import type { 
   Logger,
-  LogLevel,
   LogMetadata,
   AgentMetadata,
-  createLogMetadata as sharedCreateLogMetadata,
   BaseMetadata,
 } from '@dsh/shared';
 import type { ErrorInfo } from 'react';
 
-import { PerformanceEntry, PerformanceMetadata, NavigationMetadata } from '../types/logger.types';
+export type { LogMetadata, AgentMetadata, BaseMetadata };
 
 interface PerformanceEntry {
   name: string;
@@ -109,7 +108,7 @@ class BrowserLogger implements Logger {
     this.logToConsole(level, message, entry.metadata);
 
     // Send to backend logging service if in production
-    if (process.env.NODE_ENV === 'production') {
+    if (import.meta.env.MODE === 'production') {
       void this.sendToBackend(entry);
     }
   }
@@ -166,7 +165,7 @@ class BrowserLogger implements Logger {
 }
 
 // Create singleton instance
-export const logger = new BrowserLogger('dsh-frontend', process.env.NODE_ENV ?? 'development');
+export const logger = new BrowserLogger('dsh-frontend', import.meta.env.MODE ?? 'development');
 
 // Error boundary logging
 export function logError(error: Error, errorInfo: ErrorInfo): void {

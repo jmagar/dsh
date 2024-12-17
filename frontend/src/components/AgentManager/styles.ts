@@ -1,5 +1,5 @@
-import { Theme } from '@mui/material';
-import { SxProps } from '@mui/material/styles';
+import type { Theme } from '@mui/material';
+import type { SxProps } from '@mui/material/styles';
 
 interface StylesType {
   root: SxProps<Theme>;

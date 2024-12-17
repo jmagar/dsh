@@ -1,23 +1,27 @@
-import React from 'react';
 import { Box, Typography } from '@mui/material';
-import { styles } from './styles';
-import { EnvTestProps, EnvVars } from './types';
+import type { FC } from 'react';
 
-export const EnvTest: React.FC<EnvTestProps> = ({ className, style }) => {
-  const envVars: EnvVars = {
-    API_URL: process.env.REACT_APP_API_URL,
-    FRONTEND_URL: process.env.REACT_APP_FRONTEND_URL,
-    NODE_ENV: process.env.REACT_APP_NODE_ENV,
-    CORS_ORIGIN: process.env.REACT_APP_CORS_ORIGIN,
-    WS_URL: process.env.REACT_APP_WS_URL,
-  };
+import type { EnvTestProps } from './types';
 
+const preStyle = {
+  whiteSpace: 'pre-wrap' as const,
+  wordBreak: 'break-word' as const,
+  backgroundColor: '#f5f5f5',
+  padding: 16,
+  borderRadius: 4,
+} as const;
+
+const EnvTest: FC<EnvTestProps> = ({ envVars }) => {
   return (
-    <Box sx={styles.container} className={className} style={style}>
-      <Typography variant="h4" gutterBottom>
-        Environment Variables Test
+    <Box>
+      <Typography variant="h6" gutterBottom>
+        Environment Variables
       </Typography>
-      <pre style={styles.pre}>{JSON.stringify(envVars, null, 2)}</pre>
+      <pre style={preStyle}>
+        {JSON.stringify(envVars, null, 2)}
+      </pre>
     </Box>
   );
 };
+
+export default EnvTest;

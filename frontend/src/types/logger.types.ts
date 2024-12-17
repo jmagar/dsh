@@ -1,4 +1,4 @@
-import { BaseMetadata } from '@dsh/shared';
+import type { BaseMetadata } from '@dsh/shared';
 import type { ErrorInfo } from 'react';
 
 export interface PerformanceEntry {

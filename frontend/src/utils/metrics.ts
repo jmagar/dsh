@@ -1,9 +1,10 @@
 // External dependencies
-import { MetricType, MetricLabels, createLabels } from '@dsh/shared';
+import { MetricType, createLabels } from '@dsh/shared';
+import type { MetricLabels } from '@dsh/shared';
 
 // Internal dependencies
 import { logger } from './logger';
-import { BaseMetric, MetricPayload, BrowserMetricData } from '../types/metrics.types';
+import type { BrowserMetricData } from '../types/metrics.types';
 
 interface BaseMetric {
   name: string;
@@ -147,7 +148,7 @@ class FrontendMetrics {
     if (this.metrics.length === 0) return;
 
     try {
-      const env = process.env.NODE_ENV;
+      const env = import.meta.env.MODE;
       const environment = env !== null && env !== undefined ? env : 'development';
 
       const metricsPayload: MetricPayload[] = this.metrics.map(metric => ({
@@ -190,7 +191,7 @@ class FrontendMetrics {
 }
 
 // Create singleton instances
-const env = process.env.NODE_ENV;
+const env = import.meta.env.MODE;
 const environment = env !== null && env !== undefined ? env : 'development';
 export const metrics = new BrowserMetrics('dsh-frontend', environment);
 export const frontendMetrics = new FrontendMetrics();

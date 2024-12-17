@@ -1,4 +1,5 @@
-import { MetricType, MetricLabels } from '@dsh/shared';
+import { MetricType } from '@dsh/shared';
+import type { MetricLabels } from '@dsh/shared';
 
 export interface BaseMetric {
   name: string;

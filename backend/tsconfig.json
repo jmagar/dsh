@@ -1,16 +1,10 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../dist/backend",
+    "outDir": "./dist",
     "rootDir": ".",
-    "composite": true,
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "NodeNext",
     "target": "es2022",
-    "esModuleInterop": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "baseUrl": ".",
     "paths": {
       "@dsh/shared": ["../shared/src"],
@@ -18,10 +12,8 @@
     }
   },
   "include": [
-    "src/**/*", 
-    "src/**/*.json",
-    "tests/**/*.ts",
-    "tests/**/*.json"
+    "src/**/*",
+    "tests/**/*"
   ],
   "exclude": ["node_modules", "dist"],
   "references": [

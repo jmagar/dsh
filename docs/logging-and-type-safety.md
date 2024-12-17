@@ -210,3 +210,73 @@ Always test your logging and type safety implementations:
      invalidField: 'error' // TypeScript will catch this
    };
    ```
+
+## Vite-Specific Type Safety
+
+### Environment Variables
+```typescript
+// Type-safe environment variables with Vite
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+  readonly VITE_WS_URL: string;
+  // Add other env variables here
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
+// Usage
+const apiUrl = import.meta.env.VITE_API_URL;
+if (typeof apiUrl !== 'string') {
+  throw new Error('VITE_API_URL must be defined');
+}
+```
+
+### Module Declarations
+```typescript
+// For static assets
+declare module '*.svg' {
+  const content: string;
+  export default content;
+}
+
+declare module '*.png' {
+  const content: string;
+  export default content;
+}
+
+// For style modules
+declare module '*.module.css' {
+  const classes: { [key: string]: string };
+  export default classes;
+}
+```
+
+### Import Assertions
+```typescript
+// Type-safe JSON imports
+import data from './data.json' assert { type: 'json' };
+
+// Type-safe URL imports
+import imageUrl from './image.png?url';
+```
+
+### Best Practices for Vite
+
+1. **Environment Variable Type Safety**
+   - Always define types for environment variables
+   - Use type guards for runtime validation
+   - Keep environment variable types in sync with .env files
+
+2. **Asset Imports**
+   - Use appropriate module declarations
+   - Leverage Vite's URL imports for assets
+   - Type-check asset imports
+
+3. **Development vs Production Types**
+   ```typescript
+   if (import.meta.env.DEV) {
+     // Development-only type-safe code
+   }
+   ```

@@ -301,3 +301,290 @@ feat(metrics): add real-time CPU usage monitoring
 
 Closes #123
 ```
+
+## Vite-Specific Standards
+
+### Import Patterns
+```typescript
+// ✅ Do: Use path aliases
+import { Button } from '@/components/Button';
+import { useAuth } from '@/hooks/useAuth';
+
+// ❌ Don't: Use relative paths for deep imports
+import { Button } from '../../../components/Button';
+import { useAuth } from '../../../hooks/useAuth';
+
+// ✅ Do: Use explicit asset imports
+import logo from '@/assets/logo.svg?url';
+import styles from './styles.module.css';
+
+// ❌ Don't: Use require or non-typed imports
+const logo = require('../../assets/logo.svg');
+import styles from './styles.css';
+```
+
+### Asset Organization
+```
+src/
+├── assets/          # Static assets
+│   ├── images/      # Image files
+│   ├── fonts/       # Font files
+│   └── styles/      # Global styles
+├── components/      # As before...
+```
+
+### Environment Configuration
+```typescript
+// ✅ Do: Use type-safe environment variables
+const apiUrl = import.meta.env.VITE_API_URL;
+if (!apiUrl) throw new Error('VITE_API_URL is required');
+
+// ❌ Don't: Access process.env directly
+const apiUrl = process.env.VITE_API_URL;
+```
+
+### Build Optimization
+```typescript
+// ✅ Do: Use dynamic imports for code splitting
+const AdminPanel = lazy(() => import('@/components/AdminPanel'));
+
+// ❌ Don't: Import large dependencies directly in components
+import { HugeLibrary } from 'huge-library';
+```
+
+### Development Tools
+```typescript
+// ✅ Do: Use Vite's HMR API when needed
+if (import.meta.hot) {
+  import.meta.hot.accept(newModule => {
+    // Handle hot update
+  });
+}
+
+// ✅ Do: Use import.meta.env for environment checks
+if (import.meta.env.DEV) {
+  // Development-only code
+}
+```
+
+## Redux State Management
+
+### Store Structure
+```
+src/store/
+├── index.ts           # Store configuration and exports
+├── hooks.ts          # Custom typed hooks
+└── slices/           # Feature-based slices
+    ├── agentSlice.ts
+    ├── metricsSlice.ts
+    └── uiSlice.ts
+```
+
+### Slice Pattern
+```typescript
+// ✅ Do: Use feature-based slices with proper typing
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface MetricsState {
+  data: SystemMetrics | null;
+  loading: boolean;
+  error: string | null;
+}
+
+const initialState: MetricsState = {
+  data: null,
+  loading: false,
+  error: null,
+};
+
+export const metricsSlice = createSlice({
+  name: 'metrics',
+  initialState,
+  reducers: {
+    setMetrics: (state, action: PayloadAction<SystemMetrics>) => {
+      state.data = action.payload;
+      state.error = null;
+    },
+    setError: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+      state.loading = false;
+    },
+  },
+});
+
+// ❌ Don't: Mix unrelated features in a single slice
+const mixedSlice = createSlice({
+  name: 'mixed',
+  initialState: { metrics: null, agents: [], ui: {} },
+  reducers: {
+    // Don't mix different domain logic
+  },
+});
+```
+
+### Async Operations
+```typescript
+// ✅ Do: Use createAsyncThunk for async operations
+import { createAsyncThunk } from '@reduxjs/toolkit';
+
+export const fetchMetrics = createAsyncThunk(
+  'metrics/fetch',
+  async (agentId: string, { rejectWithValue }) => {
+    try {
+      const response = await api.getMetrics(agentId);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(getErrorMessage(error));
+    }
+  }
+);
+
+// Handle async states in extraReducers
+const metricsSlice = createSlice({
+  name: 'metrics',
+  initialState,
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMetrics.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchMetrics.fulfilled, (state, action) => {
+        state.data = action.payload;
+        state.loading = false;
+      })
+      .addCase(fetchMetrics.rejected, (state, action) => {
+        state.error = action.payload as string;
+        state.loading = false;
+      });
+  },
+});
+```
+
+### Selectors
+```typescript
+// ✅ Do: Create memoized selectors with proper typing
+import { createSelector } from '@reduxjs/toolkit';
+
+export const selectMetricsState = (state: RootState) => state.metrics;
+
+export const selectMetricsData = createSelector(
+  selectMetricsState,
+  (metrics) => metrics.data
+);
+
+export const selectMetricsLoading = createSelector(
+  selectMetricsState,
+  (metrics) => metrics.loading
+);
+
+// ❌ Don't: Access state directly in components
+const Component = () => {
+  // Don't do this
+  const state = useSelector((state: RootState) => state.metrics.data);
+};
+```
+
+### Custom Hooks
+```typescript
+// ✅ Do: Create typed hooks for Redux
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import type { RootState, AppDispatch } from './store';
+
+export const useAppDispatch: () => AppDispatch = useDispatch;
+export const useAppSelector: TypedUseSelectorHook<RootState> = useSelector;
+
+// Usage in components
+const Component = () => {
+  const dispatch = useAppDispatch();
+  const metrics = useAppSelector(selectMetricsData);
+};
+```
+
+### Action Types
+```typescript
+// ✅ Do: Use action creators from slice
+import { metricsSlice } from './slices/metricsSlice';
+
+const { setMetrics, setError } = metricsSlice.actions;
+
+// ❌ Don't: Create separate action types
+const SET_METRICS = 'SET_METRICS';
+const setMetricsAction = (metrics) => ({
+  type: SET_METRICS,
+  payload: metrics,
+});
+```
+
+### Testing Redux Code
+```typescript
+// ✅ Do: Test reducers independently
+describe('metricsSlice', () => {
+  it('should handle setMetrics', () => {
+    const initialState = { data: null, loading: false, error: null };
+    const metrics = { cpu: 50, memory: 70 };
+    
+    const nextState = metricsSlice.reducer(
+      initialState,
+      setMetrics(metrics)
+    );
+    
+    expect(nextState.data).toEqual(metrics);
+    expect(nextState.error).toBeNull();
+  });
+});
+
+// ✅ Do: Test async thunks with mock store
+test('fetchMetrics should handle API error', async () => {
+  const error = 'API Error';
+  api.getMetrics.mockRejectedValue(new Error(error));
+  
+  const store = mockStore(initialState);
+  await store.dispatch(fetchMetrics('agent-1'));
+  
+  const actions = store.getActions();
+  expect(actions[0].type).toBe(fetchMetrics.pending.type);
+  expect(actions[1].type).toBe(fetchMetrics.rejected.type);
+});
+```
+
+### State Shape
+```typescript
+// ✅ Do: Normalize complex data structures
+interface NormalizedState {
+  entities: {
+    [id: string]: Agent;
+  };
+  ids: string[];
+  loading: boolean;
+  error: string | null;
+}
+
+// ❌ Don't: Nest data unnecessarily
+interface NestedState {
+  agents: {
+    list: Agent[];
+    selected: Agent | null;
+    loading: boolean;
+    error: string | null;
+  };
+}
+```
+
+### Performance Considerations
+```typescript
+// ✅ Do: Use memoization for expensive computations
+const selectFilteredAgents = createSelector(
+  [selectAllAgents, selectFilter],
+  (agents, filter) => agents.filter(agent => 
+    agent.status === filter.status
+  )
+);
+
+// ❌ Don't: Perform expensive operations in selectors without memoization
+const selectFilteredAgents = (state: RootState) =>
+  state.agents.list.filter(agent => 
+    agent.status === state.filters.status
+  );
+```

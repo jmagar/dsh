@@ -11,18 +11,17 @@ module.exports = {
     'plugin:import/typescript',
     'prettier',
   ],
-  ignorePatterns: ['**/dist/**', '**/build/**', '**/node_modules/**'],
+  ignorePatterns: ['**/dist/**', '**/build/**', '**/node_modules/**', '**/coverage/**'],
   env: {
     node: true,
-    es6: true,
+    es2020: true,
   },
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',
-    project: ['./tsconfig.json', './*/tsconfig.json'],
+    project: ['./tsconfig.json', './*/tsconfig.json', './*/tsconfig.node.json'],
     tsconfigRootDir: __dirname,
     schema: {
-      // Use newer JSON schema version
       jsonSchema: {
         draft: '2020-12',
       },
@@ -32,7 +31,7 @@ module.exports = {
     'import/resolver': {
       typescript: {
         alwaysTryTypes: true,
-        project: ['./tsconfig.json', './*/tsconfig.json'],
+        project: ['./tsconfig.json', './*/tsconfig.json', './*/tsconfig.node.json'],
       },
       node: {
         extensions: ['.js', '.jsx', '.ts', '.tsx'],
@@ -88,11 +87,14 @@ module.exports = {
   overrides: [
     {
       files: ['**/*.test.ts', '**/*.test.tsx'],
-      env: {
-        jest: true,
-      },
       rules: {
         '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+    {
+      files: ['*.config.ts'],
+      rules: {
+        'import/no-default-export': 'off',
       },
     },
   ],

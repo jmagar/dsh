@@ -26,13 +26,34 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import React, { MouseEvent, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { MouseEvent } from 'react';
 
-import { useAgentConnections } from '../../hooks/useAgentConnections';
-import { useMetrics } from '../../hooks/useMetrics';
+import { testAgentConnection } from '../../services/api';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import {
+  connectAgent,
+  disconnectAgent,
+  refreshAgents,
+  selectAgentConnections,
+  selectAgentError,
+  selectAgentLoading,
+  selectSelectedAgentId,
+  setSelectedAgent,
+} from '../../store/slices/agentSlice';
+import {
+  fetchMetrics,
+  selectMetricsForAgent,
+  selectMetricsLoading,
+  selectMetricsError,
+} from '../../store/slices/metricsSlice';
+import {
+  selectAddAgentDialogOpen,
+  setAddAgentDialogOpen,
+} from '../../store/slices/uiSlice';
 
 import { getStyles } from './styles';
-import { AgentFormData, TestResult, AgentConnection, AgentMetrics } from './types';
+import type { AgentFormData, TestResult, AgentConnection } from './types';
 import { formatPercentage, formatBytes } from './utils';
 
 const initialFormData: AgentFormData = {
@@ -46,22 +67,25 @@ const initialFormData: AgentFormData = {
 export function AgentManager(): JSX.Element {
   const theme = useTheme();
   const styles = getStyles(theme);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const dispatch = useAppDispatch();
+
+  // Redux state
+  const connections = useAppSelector(selectAgentConnections);
+  const selectedAgentId = useAppSelector(selectSelectedAgentId);
+  const loading = useAppSelector(selectAgentLoading);
+  const error = useAppSelector(selectAgentError);
+  const addDialogOpen = useAppSelector(selectAddAgentDialogOpen);
+  const metricsLoading = useAppSelector(selectMetricsLoading);
+  const metricsError = useAppSelector(selectMetricsError);
+
+  // Local state
   const [formData, setFormData] = useState<AgentFormData>(initialFormData);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
-  const {
-    connections,
-    loading,
-    error,
-    connectAgent,
-    disconnectAgent,
-    testConnection,
-    refreshConnections,
-  } = useAgentConnections();
-
-  const metricsState = useMetrics(selectedAgentId);
+  // Load initial data
+  useEffect(() => {
+    void dispatch(refreshAgents());
+  }, [dispatch]);
 
   const handleFormChange =
     (field: keyof AgentFormData) =>
@@ -82,8 +106,8 @@ export function AgentManager(): JSX.Element {
         connected: false,
       };
 
-      const result = await testConnection(agent);
-      setTestResult({ success: result.success, message: result.message });
+      const result = await testAgentConnection(agent);
+      setTestResult(result);
     } catch (err) {
       setTestResult({
         success: false,
@@ -93,36 +117,37 @@ export function AgentManager(): JSX.Element {
   };
 
   const handleConnect = async (): Promise<void> => {
-    try {
-      const agent: AgentConnection = {
-        id: '',
-        name: formData.name,
-        host: formData.host,
-        port: parseInt(formData.port, 10),
-        connected: false,
-      };
+    const agent: AgentConnection = {
+      id: '',
+      name: formData.name,
+      host: formData.host,
+      port: parseInt(formData.port, 10),
+      connected: false,
+    };
 
-      await connectAgent(agent);
-      setAddDialogOpen(false);
-      setFormData(initialFormData);
-      setTestResult(null);
-    } catch (err) {
-      // Error is handled by the hook
-    }
+    await dispatch(connectAgent(agent));
+    dispatch(setAddAgentDialogOpen(false));
+    setFormData(initialFormData);
+    setTestResult(null);
   };
 
   const handleDisconnect = async (agentId: string, event?: MouseEvent): Promise<void> => {
     if (event) {
       event.stopPropagation();
     }
-    try {
-      await disconnectAgent(agentId);
-      if (selectedAgentId === agentId) {
-        setSelectedAgentId(null);
-      }
-    } catch (err) {
-      // Error is handled by the hook
+    await dispatch(disconnectAgent(agentId));
+  };
+
+  const handleAccordionChange = (agentId: string) => {
+    const newSelectedId = selectedAgentId === agentId ? null : agentId;
+    dispatch(setSelectedAgent(newSelectedId));
+    if (newSelectedId) {
+      void dispatch(fetchMetrics(newSelectedId));
     }
+  };
+
+  const handleRefresh = () => {
+    void dispatch(refreshAgents());
   };
 
   const isFormValid = (): boolean => {
@@ -139,7 +164,7 @@ export function AgentManager(): JSX.Element {
         severity="error"
         sx={styles.errorAlert}
         action={
-          <IconButton color="inherit" size="small" onClick={() => void refreshConnections()}>
+          <IconButton color="inherit" size="small" onClick={handleRefresh}>
             <RefreshIcon />
           </IconButton>
         }
@@ -151,11 +176,13 @@ export function AgentManager(): JSX.Element {
 
   const renderMetrics = (agentId: string): JSX.Element | null => {
     if (selectedAgentId !== agentId) return null;
-    if (metricsState.status === 'loading') return <Box sx={styles.loading}>Loading metrics...</Box>;
-    if (metricsState.status === 'error') return <Box sx={styles.error}>Error loading metrics</Box>;
-    if (metricsState.data === null) return null;
 
-    const metrics = metricsState.data;
+    const metrics = useAppSelector(state => selectMetricsForAgent(agentId)(state));
+
+    if (metricsLoading) return <Box sx={styles.loading}>Loading metrics...</Box>;
+    if (metricsError) return <Box sx={styles.error}>Error loading metrics</Box>;
+    if (!metrics) return null;
+
     const { cpu, memory, disk } = metrics;
 
     return (
@@ -191,12 +218,12 @@ export function AgentManager(): JSX.Element {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setAddDialogOpen(true)}
+            onClick={() => dispatch(setAddAgentDialogOpen(true))}
           >
             Add Agent
           </Button>
           <Tooltip title="Refresh">
-            <IconButton onClick={() => void refreshConnections()}>
+            <IconButton onClick={handleRefresh}>
               <RefreshIcon />
             </IconButton>
           </Tooltip>
@@ -208,7 +235,7 @@ export function AgentManager(): JSX.Element {
           <Accordion
             key={agent.id}
             expanded={selectedAgentId === agent.id}
-            onChange={() => setSelectedAgentId(selectedAgentId === agent.id ? null : agent.id)}
+            onChange={() => handleAccordionChange(agent.id)}
           >
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Box sx={styles.agentHeader}>
@@ -241,7 +268,7 @@ export function AgentManager(): JSX.Element {
       <Dialog
         open={addDialogOpen}
         onClose={() => {
-          setAddDialogOpen(false);
+          dispatch(setAddAgentDialogOpen(false));
           setFormData(initialFormData);
           setTestResult(null);
         }}
@@ -308,7 +335,7 @@ export function AgentManager(): JSX.Element {
           >
             Test Connection
           </Button>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => dispatch(setAddAgentDialogOpen(false))}>Cancel</Button>
           <Button
             onClick={() => void handleConnect()}
             variant="contained"

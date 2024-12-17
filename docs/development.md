@@ -10,17 +10,25 @@ This guide covers the setup and development workflow for the DSH project.
 
 ## Development Tools
 
-### TypeScript Tools
+### Frontend Tools (Vite)
 
-- **ts-node**: Run TypeScript files directly
+- **Vite**: Next Generation Frontend Tooling
   ```bash
-  npx ts-node script.ts
+  npm run dev        # Start dev server
+  npm run build      # Production build
+  npm run preview    # Preview production build
   ```
 
-- **tsc-watch**: Watch mode for TypeScript compilation
+  Key Features:
+  - Hot Module Replacement (HMR)
+  - Lightning-fast cold start
+  - Optimized build with Rollup
+  - CSS code splitting
+  - Asset handling and optimization
+
+- **TypeScript Tools**
   ```bash
-  npm run dev:frontend  # Watch frontend
-  npm run dev:backend   # Watch backend
+  npm run type-check  # Run TypeScript checks
   ```
 
 - **TypeDoc**: API documentation generator
@@ -49,7 +57,13 @@ This guide covers the setup and development workflow for the DSH project.
 
 ```
 dsh/
-├── frontend/          # React frontend application
+├── frontend/          # React frontend application with Vite
+│   ├── src/          # Source code
+│   ├── public/       # Static assets
+│   ├── index.html    # Entry HTML
+│   ├── vite.config.ts # Vite configuration
+│   ├── tsconfig.json # TypeScript configuration
+│   └── dist/         # Production build output
 ├── backend/          # Node.js backend server
 ├── shared/           # Shared TypeScript types and utilities
 ├── agent/            # Go monitoring agent
@@ -57,29 +71,58 @@ dsh/
 └── docs/            # Project documentation
 ```
 
-## Initial Setup
+## Vite Configuration
 
-1. **Clone the Repository**
-```bash
-git clone https://github.com/[owner]/dsh.git
-cd dsh
+### Environment Variables
+Vite uses the `VITE_` prefix for environment variables:
+```env
+# .env
+VITE_API_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3001
 ```
 
-2. **Install Dependencies**
-```bash
-npm install
+Access in code:
+```typescript
+const apiUrl = import.meta.env.VITE_API_URL;
+const wsUrl = import.meta.env.VITE_WS_URL;
 ```
 
-3. **Set Up Environment**
-```bash
-cp .env.example .env
-# Edit .env with your configuration
+### Path Aliases
+Configured in `vite.config.ts` and `tsconfig.json`:
+```typescript
+// vite.config.ts
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+      '@/client': resolve(__dirname, './src/client'),
+      '@dsh/shared': resolve(__dirname, '../shared/src'),
+    }
+  }
+});
 ```
 
-4. **Initialize Database**
-```bash
-npm run prisma:generate
-npm run prisma:migrate
+### Build Optimization
+Vite automatically handles:
+- Code splitting
+- Tree shaking
+- CSS code splitting
+- Asset optimization
+
+Custom optimizations in `vite.config.ts`:
+```typescript
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          mui: ['@mui/material', '@mui/icons-material']
+        }
+      }
+    }
+  }
+});
 ```
 
 ## Development Workflow
@@ -91,7 +134,7 @@ npm run prisma:migrate
 npm run dev
 
 # Start individual services
-npm run dev:frontend
+npm run dev:frontend  # Starts Vite dev server
 npm run dev:backend
 ```
 
@@ -125,23 +168,6 @@ npm run test:backend
 npm run test:e2e
 ```
 
-### Git Workflow
-
-1. **Creating a Feature Branch**
-```bash
-git checkout -b feature/your-feature-name
-```
-
-2. **Committing Changes**
-```bash
-npm run commit  # Uses commitizen for conventional commits
-```
-
-3. **Pre-commit Hooks**
-- Lint staged files
-- Run type checking
-- Format code
-
 ## Building for Production
 
 ```bash
@@ -149,105 +175,18 @@ npm run commit  # Uses commitizen for conventional commits
 npm run build
 
 # Build individual packages
-npm run build:frontend
+npm run build:frontend  # Uses Vite build
 npm run build:backend
 npm run build:shared
 ```
 
-## Docker Support
-
-### Development with Docker
-
+### Production Build Analysis
 ```bash
-# Build images
-docker compose build
+# Analyze bundle size
+npx vite-bundle-visualizer
 
-# Start services
-docker compose up -d
-
-# View logs
-docker compose logs -f
-```
-
-### Production Builds
-
-```bash
-# Build production images
-docker build -t dsh-frontend:prod frontend
-docker build -t dsh-backend:prod backend
-docker build -t dsh-agent:prod agent
-```
-
-## Debugging
-
-### Frontend Debugging
-
-1. **Browser DevTools**
-- React Developer Tools
-- Redux DevTools
-- Performance profiling
-
-2. **Common Issues**
-- Check browser console
-- Verify API endpoints
-- Check environment variables
-
-### Backend Debugging
-
-1. **Logging**
-```typescript
-import { logger } from './utils/logger';
-
-logger.info('Server started');
-logger.error('Error occurred', { error });
-```
-
-2. **API Testing**
-- Use Postman/Insomnia
-- Check request/response headers
-- Validate request body
-
-### Database Debugging
-
-1. **Prisma Studio**
-```bash
-npx prisma studio
-```
-
-2. **Query Issues**
-- Check Prisma logs
-- Use EXPLAIN ANALYZE
-- Monitor query performance
-
-## Configuration
-
-### Frontend Configuration
-```typescript
-// frontend/src/config/index.ts
-export const config = {
-  api: {
-    baseUrl: process.env.REACT_APP_API_URL
-  },
-  ws: {
-    endpoint: process.env.REACT_APP_WS_URL
-  }
-};
-```
-
-### Backend Configuration
-```typescript
-// backend/src/config/index.ts
-export const config = {
-  server: {
-    port: process.env.PORT || 3000
-  },
-  database: {
-    url: process.env.DATABASE_URL
-  },
-  redis: {
-    url: process.env.REDIS_URL
-  }
-};
+# Preview production build
+npm run preview
 ```
 
 ## Best Practices
@@ -268,51 +207,46 @@ export const config = {
    - User-friendly error messages
 
 4. **Performance**
-   - Lazy load components
-   - Optimize images
+   - Use Vite's code splitting
+   - Optimize imports
    - Use proper caching
+   - Leverage Vite's build optimizations
+   - Use dynamic imports for route-level code splitting
+   - Optimize asset loading with ?url imports
+   - Use CSS code splitting
 
 5. **Security**
    - Validate all inputs
    - Use proper authentication
    - Follow security best practices
 
-## Development Workflow
-
-1. Start the development servers:
-   ```bash
-   npm run dev
-   ```
-
-2. Start the Go agent with live reload:
-   ```bash
-   cd agent && air
-   ```
-
-3. Run tests in watch mode:
-   ```bash
-   npm run test:watch
-   ```
-
-4. Generate API documentation:
-   ```bash
-   npm run docs
-   ```
-
-## Code Quality
-
-- ESLint and Prettier are configured for TypeScript code
-- golangci-lint is configured for Go code
-- Pre-commit hooks ensure code quality
-- Continuous Integration runs all checks
-
 ## Debugging
 
 ### TypeScript Debugging
 
-1. Use VS Code's built-in debugger
+1. Use VS Code's built-in debugger with Vite
+   ```json
+   {
+     "type": "chrome",
+     "request": "launch",
+     "name": "Launch Chrome against localhost",
+     "url": "http://localhost:3000",
+     "webRoot": "${workspaceFolder}/src",
+     "sourceMaps": true
+   }
+   ```
+
 2. Configure launch.json for your needs
 3. Set breakpoints in code
+4. Use Vite's error overlay
+5. Use Vite's HMR debugging:
+   ```typescript
+   if (import.meta.hot) {
+     import.meta.hot.on('vite:beforeUpdate', () => {
+       console.log('vite:beforeUpdate');
+     });
+   }
+   ```
 
 ### Go Debugging
 

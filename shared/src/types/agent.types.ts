@@ -1,0 +1,70 @@
+export interface Agent {
+  id?: string;
+  name: string;
+  host: string;
+  port: number;
+  apiKey?: string;
+  sshKey?: string;
+  connected?: boolean;
+  lastSeen?: string;
+  osInfo?: {
+    os: string;
+    platform: string;
+    arch: string;
+  };
+}
+
+export interface SystemInfo {
+  hostname: string;
+  platform: string;
+  os: string;
+  version: string;
+  architecture: string;
+  cpuInfo: CPU[];
+  memoryInfo: Memory;
+  environment: Record<string, string>;
+  capabilities: string[];
+}
+
+export interface CPU {
+  model: string;
+  cores: number;
+  frequency: number;
+  cache: number;
+}
+
+export interface Memory {
+  total: number;
+  available: number;
+  used: number;
+  free: number;
+  swapTotal: number;
+  swapUsed: number;
+  swapFree: number;
+}
+
+export interface AgentStatus {
+  id: string;
+  hostname: string;
+  connected: boolean;
+  lastSeen: string;
+  osInfo: {
+    platform: string;
+    os: string;
+    arch: string;
+    release?: string;
+  };
+}
+
+export interface AgentCommand {
+  type: 'COLLECT_METRICS' | 'UPDATE_CONFIG' | 'RESTART' | 'SHUTDOWN';
+  payload?: unknown;
+  timestamp: string;
+}
+
+export interface AgentResponse {
+  success: boolean;
+  error?: string;
+  data?: unknown;
+  timestamp: string;
+}

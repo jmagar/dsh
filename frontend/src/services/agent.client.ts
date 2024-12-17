@@ -1,6 +1,6 @@
-import { LogMetadata } from '@dsh/shared';
+import type { LogMetadata } from '@dsh/shared';
 
-import { DockerContainer } from '../types/docker.types';
+import type { DockerContainer } from '../types/docker.types';
 import { logger } from '../utils/logger';
 
 const BASE_URL = 'http://localhost:3001';

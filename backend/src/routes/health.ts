@@ -1,5 +1,5 @@
-import { AgentStatus } from '@dsh/shared/types/agent';
-import { SystemMetrics } from '@dsh/shared/types/metrics';
+import { AgentStatus } from '@dsh/shared/types/agent.types';
+import { SystemMetrics } from '@dsh/shared/types/metrics.types';
 import { LogMetadata } from '@dsh/shared/utils/logger';
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';

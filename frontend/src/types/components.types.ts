@@ -1,31 +1,24 @@
-import { AgentStatus } from '@dsh/shared/types/agent';
-import { SystemMetrics } from '@dsh/shared/types/metrics';
+import type { AgentStatus } from '@dsh/shared/types/agent.types.js';
+import type { SystemMetrics } from '@dsh/shared/types/metrics.types.js';
 
 export interface SystemStatusData {
-  status: 'healthy' | 'unhealthy';
-  details?: {
-    database?: boolean;
-    redis?: boolean;
-    error?: string;
-  };
   agents: AgentStatus[];
-  agentMetrics: Record<string, SystemMetrics>;
+  metrics: SystemMetrics[];
+  timestamp: string;
+  errors?: string[];
 }
 
 export interface ServiceStatusCardProps {
-  name: string;
-  isHealthy: boolean;
-  error?: string | undefined;
+  title: string;
+  value: string | number;
+  status: 'success' | 'warning' | 'error' | 'info';
+  icon?: React.ReactNode;
 }
 
+// Common props interface used across all agent status card components
 export interface AgentStatusCardProps {
-  agent: AgentStatus & { 
-    osInfo: { 
-      platform: string; 
-      os: string; 
-      arch: string; 
-      release?: string 
-    } 
-  };
-  metrics?: SystemMetrics | null;
+  agentStatus: AgentStatus;
+  metrics: SystemMetrics;
+  onRefresh?: () => void;
+  className?: string;
 }
