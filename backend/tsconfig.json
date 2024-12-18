@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": ".",
@@ -21,10 +21,7 @@
     "tests/**/*.tsx",
     ".eslintrc.cjs"
   ],
-  "exclude": ["node_modules", "dist"],
   "references": [
-    {
-      "path": "../shared"
-    }
+    { "path": "../shared" }
   ]
 }
