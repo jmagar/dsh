@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@dsh/shared": "1.0.0",
+    "@dsh/shared": "file:../shared",
     "@types/ws": "^8.5.13",
     "compression": "^1.7.5",
     "cors": "^2.8.5",
