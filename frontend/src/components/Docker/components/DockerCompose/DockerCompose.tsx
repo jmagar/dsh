@@ -23,12 +23,13 @@ import {
   CircularProgress,
   Fade,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import React, { useEffect } from 'react';
+import { alpha, useTheme } from '@mui/material/styles';
+import React, { useEffect, useState } from 'react';
 
 import { getStyles } from './styles';
+import type { DockerComposeConfig } from '../../types';
 
-import { useDockerCompose } from '@/client/hooks/useDockerCompose';
+import { useDockerCompose } from '@/hooks/useDockerCompose';
 
 interface DockerComposeProps {
   hostId: string;
@@ -38,25 +39,58 @@ export function DockerCompose({ hostId }: DockerComposeProps) {
   const theme = useTheme();
   const styles = getStyles(theme);
   const {
-    loading,
-    error,
     composeContent,
-    currentConfig,
-    editMode,
-    showConfirmDialog,
-    dialogAction,
-    handleEditModeChange,
-    handleContentChange,
-    handleAction,
-    handleSave,
-    setShowConfirmDialog,
-    setDialogAction,
-    loadConfig,
-  } = useDockerCompose({ hostId });
+    status: loading,
+    handleComposeContentChange,
+    validateCompose,
+    applyCompose,
+  } = useDockerCompose();
 
-  useEffect(() => {
-    void loadConfig('docker-compose.yml');
-  }, [loadConfig]);
+  const [editMode, setEditMode] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [dialogAction, setDialogAction] = useState<'up' | 'down' | 'remove'>('up');
+  const [error, setError] = useState<string | null>(null);
+  const [currentConfig, setCurrentConfig] = useState<DockerComposeConfig | null>(null);
+
+  const handleEditModeChange = (mode: boolean) => {
+    setEditMode(mode);
+  };
+
+  const handleContentChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      handleComposeContentChange(value);
+    }
+  };
+
+  const handleAction = async (action: 'up' | 'down' | 'remove') => {
+    try {
+      if (action === 'up') {
+        const isValid = await validateCompose();
+        if (!isValid) {
+          setError('Invalid Docker Compose configuration');
+          return;
+        }
+        await applyCompose();
+      }
+      // TODO: Implement down and remove actions
+      setShowConfirmDialog(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const isValid = await validateCompose();
+      if (!isValid) {
+        setError('Invalid Docker Compose configuration');
+        return;
+      }
+      setEditMode(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -129,9 +163,9 @@ export function DockerCompose({ hostId }: DockerComposeProps) {
             <Button
               color="inherit"
               size="small"
-              onClick={() => void loadConfig('docker-compose.yml')}
+              onClick={() => setError(null)}
             >
-              Retry
+              Dismiss
             </Button>
           }
         >

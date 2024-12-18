@@ -8,7 +8,6 @@ import {
   Memory as MemoryIcon,
   Speed as SpeedIcon,
   Storage as StorageIcon,
-  NetworkCheck as NetworkIcon,
   Article as LogsIcon,
 } from '@mui/icons-material';
 import {
@@ -30,32 +29,39 @@ import {
 } from '@mui/material';
 import React, { useState } from 'react';
 
-import DockerCompose from '../DockerCompose';
-import { DockerContainers } from '../DockerContainers';
-import { LogViewer } from '../LogViewer';
-
+import { DockerCompose } from './components/DockerCompose/DockerCompose';
+import { DockerContainers } from './components/DockerContainers/DockerContainers';
+import { LogViewer } from './components/LogViewer/LogViewer';
 import { TabPanel } from './components/TabPanel';
 import { getStyles } from './styles';
 import { DockerManagerProps } from './types';
-
-import { useDockerManager } from '@/client/hooks/useDockerManager';
+import { formatPercentage, clampValue, getStatsValue } from './utils';
+import { useDockerManager } from '../../hooks/useDockerManager';
 
 export function DockerManager({ hostId, userId }: DockerManagerProps) {
   const theme = useTheme();
   const styles = getStyles(theme);
   const [activeTab, setActiveTab] = useState(0);
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   const {
     containers,
     loading,
     error,
-    refreshing,
-    handleRefresh,
-    formatPercentage,
-    clampValue,
-    getStatsValue,
-  } = useDockerManager({ hostId });
+    handleContainerAction,
+    getContainerStatus,
+    refreshContainers,
+  } = useDockerManager(hostId, userId);
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await refreshContainers();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
