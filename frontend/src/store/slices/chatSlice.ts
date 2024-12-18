@@ -1,28 +1,6 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import type { PayloadAction } from '@reduxjs/toolkit';
-import type { RootState } from '../types';
-
-interface ChatMessage {
-  id: string;
-  content: string;
-  sender: 'user' | 'agent';
-  timestamp: string;
-  status: 'sending' | 'sent' | 'error';
-}
-
-interface ChatSession {
-  id: string;
-  agentId: string;
-  messages: ChatMessage[];
-  isActive: boolean;
-}
-
-export interface ChatState {
-  sessions: Record<string, ChatSession>;
-  activeSessionId: string | null;
-  loading: boolean;
-  error: string | null;
-}
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { ChatState, ChatSession, ChatMessage } from '../types';
+import { chatClient } from '../../services/chat.client';
 
 const initialState: ChatState = {
   sessions: {},
@@ -31,40 +9,27 @@ const initialState: ChatState = {
   error: null,
 };
 
-export const sendMessage = createAsyncThunk(
-  'chat/sendMessage',
-  async ({ sessionId, content }: { sessionId: string; content: string }, { rejectWithValue }) => {
-    try {
-      // TODO: Implement API call
-      const message: ChatMessage = {
-        id: Date.now().toString(),
-        content,
-        sender: 'user',
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-      };
-      return { sessionId, message };
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to send message');
-    }
+export const fetchSessions = createAsyncThunk(
+  'chat/fetchSessions',
+  async () => {
+    const response = await chatClient.getSessions();
+    return response.data;
   }
 );
 
-export const startSession = createAsyncThunk(
-  'chat/startSession',
-  async (agentId: string, { rejectWithValue }) => {
-    try {
-      // TODO: Implement API call
-      const session: ChatSession = {
-        id: Date.now().toString(),
-        agentId,
-        messages: [],
-        isActive: true,
-      };
-      return session;
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to start session');
-    }
+export const createSession = createAsyncThunk(
+  'chat/createSession',
+  async () => {
+    const response = await chatClient.createSession();
+    return response.data;
+  }
+);
+
+export const sendMessage = createAsyncThunk(
+  'chat/sendMessage',
+  async ({ sessionId, content }: { sessionId: string; content: string }) => {
+    const response = await chatClient.sendMessage(sessionId, content);
+    return response.data;
   }
 );
 
@@ -75,61 +40,61 @@ const chatSlice = createSlice({
     setActiveSession: (state, action: PayloadAction<string | null>) => {
       state.activeSessionId = action.payload;
     },
-    clearError: (state) => {
-      state.error = null;
-    },
   },
   extraReducers: (builder) => {
     builder
-      // Send message
+      .addCase(fetchSessions.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSessions.fulfilled, (state, action: PayloadAction<ChatSession[]>) => {
+        state.loading = false;
+        state.sessions = action.payload.reduce((acc, session) => {
+          acc[session.id] = session;
+          return acc;
+        }, {} as Record<string, ChatSession>);
+      })
+      .addCase(fetchSessions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch sessions';
+      })
+      .addCase(createSession.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createSession.fulfilled, (state, action: PayloadAction<ChatSession>) => {
+        state.loading = false;
+        state.sessions[action.payload.id] = action.payload;
+        state.activeSessionId = action.payload.id;
+      })
+      .addCase(createSession.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to create session';
+      })
       .addCase(sendMessage.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(sendMessage.fulfilled, (state, action) => {
+      .addCase(sendMessage.fulfilled, (state, action: PayloadAction<{ sessionId: string; message: ChatMessage }>) => {
+        state.loading = false;
         const { sessionId, message } = action.payload;
         if (state.sessions[sessionId]) {
           state.sessions[sessionId].messages.push(message);
         }
-        state.loading = false;
       })
       .addCase(sendMessage.rejected, (state, action) => {
-        state.error = action.payload as string;
         state.loading = false;
-      })
-      // Start session
-      .addCase(startSession.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(startSession.fulfilled, (state, action) => {
-        const session = action.payload;
-        state.sessions[session.id] = session;
-        state.activeSessionId = session.id;
-        state.loading = false;
-      })
-      .addCase(startSession.rejected, (state, action) => {
-        state.error = action.payload as string;
-        state.loading = false;
+        state.error = action.error.message || 'Failed to send message';
       });
   },
 });
 
+export const { setActiveSession } = chatSlice.actions;
+export default chatSlice.reducer;
+
 // Selectors
-export const selectChatState = (state: RootState) => state.chat;
-
-export const selectSessions = (state: RootState) => selectChatState(state).sessions;
-
-export const selectActiveSessionId = (state: RootState) => selectChatState(state).activeSessionId;
-
-export const selectActiveSession = (state: RootState) => {
-  const activeId = selectActiveSessionId(state);
-  return activeId ? selectSessions(state)[activeId] : null;
-};
-
-export const selectChatLoading = (state: RootState) => selectChatState(state).loading;
-
-export const selectChatError = (state: RootState) => selectChatState(state).error;
-
-export const { setActiveSession, clearError } = chatSlice.actions;
-export const chatReducer = chatSlice.reducer; 
+export const selectSessions = (state: { chat: ChatState }) => Object.values(state.chat.sessions);
+export const selectActiveSession = (state: { chat: ChatState }) => 
+  state.chat.activeSessionId ? state.chat.sessions[state.chat.activeSessionId] : null;
+export const selectChatLoading = (state: { chat: ChatState }) => state.chat.loading;
+export const selectChatError = (state: { chat: ChatState }) => state.chat.error; 

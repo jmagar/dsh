@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { fetchAgentMetrics } from '../../services/api';
+
 import type { AgentMetrics } from '../../components/AgentManager/types';
+import { fetchAgentMetrics } from '../../services/api';
 import type { RootState } from '../types';
 
 export interface MetricsState {
@@ -60,14 +61,17 @@ const metricsSlice = createSlice({
 // Selectors
 export const selectMetricsState = (state: RootState) => state.metrics;
 
-export const selectMetricsData = (state: RootState) => selectMetricsState(state).data;
+export const selectMetricsData = (state: RootState): Record<string, AgentMetrics | null> => 
+  selectMetricsState(state).data;
 
 export const selectMetricsForAgent = (agentId: string) => (state: RootState) => 
   selectMetricsData(state)[agentId];
 
-export const selectMetricsLoading = (state: RootState) => selectMetricsState(state).loading;
+export const selectMetricsLoading = (state: RootState): boolean => 
+  selectMetricsState(state).loading;
 
-export const selectMetricsError = (state: RootState) => selectMetricsState(state).error;
+export const selectMetricsError = (state: RootState): string | null => 
+  selectMetricsState(state).error;
 
 export const { clearMetrics, clearError } = metricsSlice.actions;
 export const metricsReducer = metricsSlice.reducer;

@@ -1,9 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
 import type { Action, ThunkDispatch } from '@reduxjs/toolkit';
+
 import type { AgentMetrics } from '../../../components/AgentManager/types';
 import { fetchAgentMetrics } from '../../../services/api';
-import { metricsReducer, fetchMetrics, clearMetrics } from '../metricsSlice';
 import type { RootState } from '../../types';
+import { metricsReducer, fetchMetrics, clearMetrics } from '../metricsSlice';
 
 // Mock the API
 jest.mock('../../../services/api');

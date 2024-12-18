@@ -1,16 +1,20 @@
 module.exports = {
-  extends: [
-    '../.eslintrc.js', 
-    'plugin:security/recommended-legacy'
-  ],
+  extends: ['../.eslintrc.cjs', 'plugin:security/recommended-legacy'],
   plugins: ['security'],
   rules: {
     'security/detect-object-injection': 'warn',
     'security/detect-non-literal-fs-filename': 'warn',
     'security/detect-non-literal-require': 'warn',
-    'security/detect-eval-with-expression': 'error',
+    'security/detect-eval-with-expression': 'error'
   },
   overrides: [
+    {
+      files: ['*.ts', '*.tsx'],
+      parserOptions: {
+        project: './tsconfig.json',
+        tsconfigRootDir: __dirname
+      }
+    },
     {
       files: ['src/config/**/*.ts'],
       rules: {

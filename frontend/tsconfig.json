@@ -13,7 +13,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@dsh/shared": ["../shared/src"],
       "@dsh/shared/*": ["../shared/src/*"]
     },
@@ -23,16 +23,18 @@
     "types": ["vite/client", "vitest/globals", "node"]
   },
   "include": [
-    "vite.env.d.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.js",
-    "src/**/*.jsx",
-    "src/**/*.json",
-    ".eslintrc.js",
-    "*.config.ts",
-    "*.config.js",
-    "*.d.ts"
+    "./src/**/*.ts",
+    "./src/**/*.tsx",
+    "./src/**/*.js",
+    "./src/**/*.jsx",
+    "./src/**/*.json",
+    "./tests/**/*.ts",
+    "./tests/**/*.tsx",
+    "./vite.env.d.ts",
+    "./.eslintrc.js",
+    "./*.config.ts",
+    "./*.config.js",
+    "./*.d.ts"
   ],
   "exclude": [
     "node_modules",

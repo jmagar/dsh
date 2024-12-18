@@ -1,7 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit';
 import type { Action, ThunkDispatch } from '@reduxjs/toolkit';
-import { uiReducer, setAddAgentDialogOpen } from '../uiSlice';
+
 import type { RootState } from '../../types';
+import { uiReducer, setAddAgentDialogOpen } from '../uiSlice';
 
 describe('uiSlice', () => {
   let store: ReturnType<typeof configureStore> & {

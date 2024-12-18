@@ -1,8 +1,9 @@
-import React from 'react';
-import type { AgentStatusCardProps } from '../../../types/components.types.js';
-import { Card, CardContent, Typography, Box, IconButton } from '@mui/material';
 import { formatBytes, formatUptime } from '@dsh/shared/utils/format.js';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { Card, CardContent, Typography, Box, IconButton } from '@mui/material';
+import React from 'react';
+
+import type { AgentStatusCardProps } from '../../../types/components.types.js';
 
 export const AgentStatusCard: React.FC<AgentStatusCardProps> = ({ 
   agentStatus, 

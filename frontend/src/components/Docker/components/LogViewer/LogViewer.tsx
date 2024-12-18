@@ -1,4 +1,11 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import {
+  Refresh as RefreshIcon,
+  Clear as ClearIcon,
+  FilterList as FilterIcon,
+  Error as ErrorIcon,
+  Warning as WarningIcon,
+  Info as InfoIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Typography,
@@ -12,20 +19,15 @@ import {
   CircularProgress,
   Fade,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  Clear as ClearIcon,
-  FilterList as FilterIcon,
-  Error as ErrorIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
-} from '@mui/icons-material';
-import { FixedSizeList as List } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
 import { useTheme } from '@mui/material/styles';
+import React, { useRef, useCallback, useEffect } from 'react';
+import AutoSizer from 'react-virtualized-auto-sizer';
+import { FixedSizeList as List } from 'react-window';
+
+import { getStyles } from './styles';
+
 import { useLogViewer } from '@/client/hooks/useLogViewer';
 import { DockerLog } from '@/client/types/docker.types';
-import { getStyles } from './styles';
 
 interface LogViewerProps {
   hostIds: string[];

@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import {
+  Refresh as RefreshIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  CleaningServices as PruneIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Typography,
@@ -22,15 +27,13 @@ import {
   Fade,
   Chip,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  Delete as DeleteIcon,
-  Add as AddIcon,
-  CleaningServices as PruneIcon,
-} from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import { useDockerVolumes } from '@/client/hooks/useDockerVolumes';
+import React, { useEffect, useState } from 'react';
+
 import { getStyles } from './styles';
+
+import { useDockerVolumes } from '@/client/hooks/useDockerVolumes';
+
 
 interface DockerVolumesProps {
   hostIds: string[];

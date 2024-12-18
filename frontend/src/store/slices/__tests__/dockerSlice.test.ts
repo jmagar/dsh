@@ -1,5 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import type { Action, ThunkDispatch } from '@reduxjs/toolkit';
+
+import type { RootState } from '../../types';
 import {
   dockerReducer,
   fetchContainers,
@@ -8,7 +10,6 @@ import {
   setSelectedContainer,
   clearError,
 } from '../dockerSlice';
-import type { RootState } from '../../types';
 
 describe('dockerSlice', () => {
   let store: ReturnType<typeof configureStore> & {

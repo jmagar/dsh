@@ -95,9 +95,9 @@ export default defineConfig(async () => {
     plugins,
     resolve: {
       alias: {
-        '@': resolve(__dirname, './src'),
-        '@/client': resolve(__dirname, './src/client'),
+        '@': resolve(__dirname, 'src'),
         '@dsh/shared': resolve(__dirname, '../shared/src'),
+        '@dsh/shared/*': resolve(__dirname, '../shared/src/*')
       },
     },
     server: {

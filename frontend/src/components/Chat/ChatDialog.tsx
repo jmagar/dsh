@@ -1,4 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import {
+  Send as SendIcon,
+  Person as PersonIcon,
+  SmartToy as BotIcon,
+} from '@mui/icons-material';
 import {
   Box,
   TextField,
@@ -8,14 +12,13 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import {
-  Send as SendIcon,
-  Person as PersonIcon,
-  SmartToy as BotIcon,
-} from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import { Message } from '@/client/types/chat.types';
+import React, { useState, useRef, useEffect } from 'react';
+
 import { getStyles } from './styles';
+
+import { Message } from '@/client/types/chat.types';
+
 
 interface ChatDialogProps {
   messages: Message[];

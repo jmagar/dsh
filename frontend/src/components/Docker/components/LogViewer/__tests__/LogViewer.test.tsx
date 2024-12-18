@@ -1,7 +1,9 @@
-import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import React from 'react';
+
 import { LogViewer } from '../LogViewer';
+
 import { useLogViewer } from '@/client/hooks/useLogViewer';
 
 // Mock the hooks

@@ -3,8 +3,9 @@ import { MetricType, createLabels } from '@dsh/shared';
 import type { MetricLabels } from '@dsh/shared';
 
 // Internal dependencies
-import { logger } from './logger';
 import type { BrowserMetricData } from '../types/metrics.types';
+
+import { logger } from './logger';
 
 interface BaseMetric {
   name: string;

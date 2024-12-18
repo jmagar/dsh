@@ -1,7 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 import type { Action, ThunkDispatch } from '@reduxjs/toolkit';
+
 import type { AgentConnection } from '../../../components/AgentManager/types';
 import { connectToAgent, disconnectFromAgent, refreshAgentConnections } from '../../../services/api';
+import type { RootState } from '../../../store';
 import {
   agentReducer,
   connectAgent,
@@ -9,7 +11,6 @@ import {
   refreshAgents,
   setSelectedAgent,
 } from '../agentSlice';
-import type { RootState } from '../../../store';
 
 // Mock the API
 jest.mock('../../../services/api');

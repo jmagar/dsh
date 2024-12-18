@@ -1,4 +1,12 @@
-import React, { useEffect } from 'react';
+import Editor from '@monaco-editor/react';
+import {
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
+  PlayArrow as PlayArrowIcon,
+  Stop as StopIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Typography,
@@ -15,18 +23,12 @@ import {
   CircularProgress,
   Fade,
 } from '@mui/material';
-import {
-  Edit as EditIcon,
-  Save as SaveIcon,
-  Close as CloseIcon,
-  PlayArrow as PlayArrowIcon,
-  Stop as StopIcon,
-  Delete as DeleteIcon,
-} from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import Editor from '@monaco-editor/react';
-import { useDockerCompose } from '@/client/hooks/useDockerCompose';
+import React, { useEffect } from 'react';
+
 import { getStyles } from './styles';
+
+import { useDockerCompose } from '@/client/hooks/useDockerCompose';
 
 interface DockerComposeProps {
   hostId: string;

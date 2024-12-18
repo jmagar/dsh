@@ -1,9 +1,11 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material';
-import { Provider } from 'react-redux';
 import { createTheme } from '@mui/material/styles';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { Provider } from 'react-redux';
+
 import { DockerManager } from '../DockerManager';
+
 import { useDockerManager } from '@/client/hooks/useDockerManager';
 
 // Mock the hooks and components

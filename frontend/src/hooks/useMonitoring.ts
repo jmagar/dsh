@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
-import type { SystemMetrics } from '@dsh/shared/types/metrics.types.js';
 import type { AgentStatus } from '@dsh/shared/types/agent.types.js';
+import type { SystemMetrics } from '@dsh/shared/types/metrics.types.js';
+import { useState, useEffect } from 'react';
+
 import { fetchSystemMetrics, fetchAgentStatus } from '../api/monitoring.js';
+import { createLogMetadata } from '../utils/logger';
+
+const logger = console; // TODO: Replace with actual logger implementation
 
 interface UseMonitoringResult {
   metrics: SystemMetrics | null;
@@ -19,6 +23,9 @@ export function useMonitoring(pollInterval = 5000): UseMonitoringResult {
 
   const fetchData = async () => {
     try {
+      logger.info('Fetching monitoring data', createLogMetadata('monitoring-hook', undefined, {
+        message: 'Starting monitoring data fetch'
+      }));
       setIsLoading(true);
       const [metricsData, statusData] = await Promise.all([
         fetchSystemMetrics(),
@@ -27,17 +34,30 @@ export function useMonitoring(pollInterval = 5000): UseMonitoringResult {
       setMetrics(metricsData);
       setAgentStatus(statusData);
       setError(null);
+      logger.info('Monitoring data fetched', createLogMetadata('monitoring-hook', undefined, {
+        message: 'Successfully fetched monitoring data'
+      }));
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch monitoring data'));
+      const error = err instanceof Error ? err : new Error('Failed to fetch monitoring data');
+      logger.error('Monitoring data fetch failed', createLogMetadata('monitoring-hook', error, {
+        message: 'Failed to fetch monitoring data'
+      }));
+      setError(error);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, pollInterval);
-    return () => clearInterval(interval);
+    void fetchData();
+    const interval = setInterval(() => void fetchData(), pollInterval);
+    
+    return () => {
+      clearInterval(interval);
+      logger.info('Monitoring cleanup', createLogMetadata('monitoring-hook', undefined, {
+        message: 'Cleaning up monitoring interval'
+      }));
+    };
   }, [pollInterval]);
 
   return {

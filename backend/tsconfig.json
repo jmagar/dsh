@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": ".",
-    "module": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "target": "es2022",
     "baseUrl": ".",
     "paths": {
@@ -12,8 +13,13 @@
     }
   },
   "include": [
-    "src/**/*",
-    "tests/**/*"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    ".eslintrc.cjs"
   ],
   "exclude": ["node_modules", "dist"],
   "references": [

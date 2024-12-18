@@ -1,36 +1,68 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useTheme, useMediaQuery } from '@mui/material';
+import { useCallback } from 'react';
 
-interface UseUIResult {
-  isMobile: boolean;
-  isTablet: boolean;
-  isDesktop: boolean;
-  isDarkMode: boolean;
-  toggleDarkMode: () => void;
-}
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import {
+  closeAllDialogs,
+  closeDialog,
+  openDialog,
+  selectAllDialogStates,
+  selectDialogState,
+  toggleDialog,
+} from '../store/slices/uiSlice';
+import type { RootState } from '../store/store';
 
-export function useUI(): UseUIResult {
-  const theme = useTheme();
-  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-  const [isDarkMode, setIsDarkMode] = useState(prefersDarkMode);
+import { createLogMetadata } from '../utils/logger';
 
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
-  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+const logger = console; // TODO: Replace with actual logger implementation
 
-  const toggleDarkMode = useCallback(() => {
-    setIsDarkMode(prev => !prev);
-  }, []);
+export const useUI = () => {
+  const dispatch = useAppDispatch();
+  const allDialogStates = useAppSelector(selectAllDialogStates);
 
-  useEffect(() => {
-    setIsDarkMode(prefersDarkMode);
-  }, [prefersDarkMode]);
+  const handleOpenDialog = useCallback((dialogId: string) => {
+    dispatch(openDialog(dialogId));
+    logger.info('Dialog opened', createLogMetadata('ui-hook', undefined, {
+      message: `Opened dialog: ${dialogId}`
+    }));
+  }, [dispatch]);
+
+  const handleCloseDialog = useCallback((dialogId: string) => {
+    dispatch(closeDialog(dialogId));
+    logger.info('Dialog closed', createLogMetadata('ui-hook', undefined, {
+      message: `Closed dialog: ${dialogId}`
+    }));
+  }, [dispatch]);
+
+  const handleToggleDialog = useCallback((dialogId: string) => {
+    dispatch(toggleDialog(dialogId));
+    logger.info('Dialog toggled', createLogMetadata('ui-hook', undefined, {
+      message: `Toggled dialog: ${dialogId}`
+    }));
+  }, [dispatch]);
+
+  const handleCloseAllDialogs = useCallback(() => {
+    dispatch(closeAllDialogs());
+    logger.info('All dialogs closed', createLogMetadata('ui-hook', undefined, {
+      message: 'Closed all dialogs'
+    }));
+  }, [dispatch]);
+
+  const dialogStates = useAppSelector((state: RootState) => 
+    Object.keys(allDialogStates).reduce((acc, dialogId) => ({
+      ...acc,
+      [dialogId]: selectDialogState(dialogId)(state)
+    }), {} as Record<string, boolean>)
+  );
+
+  const isDialogOpen = useCallback((dialogId: string) => 
+    dialogStates[dialogId] ?? false, [dialogStates]);
 
   return {
-    isMobile,
-    isTablet,
-    isDesktop,
-    isDarkMode,
-    toggleDarkMode
-  };
-} 
+    allDialogStates,
+    isDialogOpen,
+    openDialog: handleOpenDialog,
+    closeDialog: handleCloseDialog,
+    toggleDialog: handleToggleDialog,
+    closeAllDialogs: handleCloseAllDialogs,
+  } as const;
+}; 

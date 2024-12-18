@@ -1,4 +1,16 @@
-import React, { useState } from 'react';
+import {
+  ViewList as ContainersIcon,
+  Storage as ComposeIcon,
+  Refresh as RefreshIcon,
+  Settings as SettingsIcon,
+  RestartAlt as RestartIcon,
+  MoreVert as MoreVertIcon,
+  Memory as MemoryIcon,
+  Speed as SpeedIcon,
+  Storage as StorageIcon,
+  NetworkCheck as NetworkIcon,
+  Article as LogsIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Paper,
@@ -16,26 +28,17 @@ import {
   Divider,
   LinearProgress,
 } from '@mui/material';
-import {
-  ViewList as ContainersIcon,
-  Storage as ComposeIcon,
-  Refresh as RefreshIcon,
-  Settings as SettingsIcon,
-  RestartAlt as RestartIcon,
-  MoreVert as MoreVertIcon,
-  Memory as MemoryIcon,
-  Speed as SpeedIcon,
-  Storage as StorageIcon,
-  NetworkCheck as NetworkIcon,
-  Article as LogsIcon,
-} from '@mui/icons-material';
-import { DockerContainers } from '../DockerContainers';
+import React, { useState } from 'react';
+
 import DockerCompose from '../DockerCompose';
+import { DockerContainers } from '../DockerContainers';
 import { LogViewer } from '../LogViewer';
-import { useDockerManager } from '@/client/hooks/useDockerManager';
-import { DockerManagerProps } from './types';
+
 import { TabPanel } from './components/TabPanel';
 import { getStyles } from './styles';
+import { DockerManagerProps } from './types';
+
+import { useDockerManager } from '@/client/hooks/useDockerManager';
 
 export function DockerManager({ hostId, userId }: DockerManagerProps) {
   const theme = useTheme();

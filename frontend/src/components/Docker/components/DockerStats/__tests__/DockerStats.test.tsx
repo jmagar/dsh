@@ -1,7 +1,9 @@
-import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import React from 'react';
+
 import { DockerStats } from '../DockerStats';
+
 import { useDockerStats } from '@/client/hooks/useDockerStats';
 
 // Mock the hooks

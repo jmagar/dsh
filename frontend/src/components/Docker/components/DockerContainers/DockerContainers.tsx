@@ -1,4 +1,13 @@
-import React, { useState } from 'react';
+import {
+  PlayArrow as PlayArrowIcon,
+  Stop as StopIcon,
+  Refresh as RestartIcon,
+  Delete as DeleteIcon,
+  FilterList as FilterIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
+  Settings as SettingsIcon,
+} from '@mui/icons-material';
 import {
   Box,
   IconButton,
@@ -27,19 +36,12 @@ import {
   DialogActions,
   useTheme,
 } from '@mui/material';
-import {
-  PlayArrow as PlayArrowIcon,
-  Stop as StopIcon,
-  Refresh as RestartIcon,
-  Delete as DeleteIcon,
-  FilterList as FilterIcon,
-  Search as SearchIcon,
-  Clear as ClearIcon,
-  Settings as SettingsIcon,
-} from '@mui/icons-material';
-import { DockerContainer } from '@/client/types/docker.types';
-import { useDockerContainers } from '@/client/hooks/useDockerContainers';
+import React, { useState } from 'react';
+
 import { getStyles } from './styles';
+
+import { useDockerContainers } from '@/client/hooks/useDockerContainers';
+import { DockerContainer } from '@/client/types/docker.types';
 
 interface DockerContainersProps {
   hostId: string;

@@ -1,54 +1,39 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { connectToAgent, disconnectFromAgent, refreshAgentConnections } from '../../services/api';
-import type { AgentConnection } from '../../components/AgentManager/types';
-import type { RootState } from '../types';
 
-export interface AgentState {
-  connections: AgentConnection[];
-  selectedAgentId: string | null;
-  loading: boolean;
-  error: string | null;
-}
+import { agentClient } from '../../services/agent.client';
+import type { AgentState, AgentConnection } from '../types';
+import type { RootState } from '../store';
 
 const initialState: AgentState = {
-  connections: [],
+  connections: {},
   selectedAgentId: null,
   loading: false,
   error: null,
 };
 
+// Async thunks
+export const fetchAgents = createAsyncThunk(
+  'agents/fetchAgents',
+  async () => {
+    const response = await agentClient.getAgents();
+    return response.data;
+  }
+);
+
 export const connectAgent = createAsyncThunk(
-  'agents/connect',
-  async (agent: AgentConnection, { rejectWithValue }) => {
-    try {
-      return await connectToAgent(agent);
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to connect agent');
-    }
+  'agents/connectAgent',
+  async (agentId: string) => {
+    const response = await agentClient.connectAgent(agentId);
+    return response.data;
   }
 );
 
 export const disconnectAgent = createAsyncThunk(
-  'agents/disconnect',
-  async (agentId: string, { rejectWithValue }) => {
-    try {
-      await disconnectFromAgent(agentId);
-      return agentId;
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to disconnect agent');
-    }
-  }
-);
-
-export const refreshAgents = createAsyncThunk(
-  'agents/refresh',
-  async (_, { rejectWithValue }) => {
-    try {
-      return await refreshAgentConnections();
-    } catch (error) {
-      return rejectWithValue(error instanceof Error ? error.message : 'Failed to refresh agents');
-    }
+  'agents/disconnectAgent',
+  async (agentId: string) => {
+    const response = await agentClient.disconnectAgent(agentId);
+    return response.data;
   }
 );
 
@@ -59,68 +44,58 @@ const agentSlice = createSlice({
     setSelectedAgent: (state, action: PayloadAction<string | null>) => {
       state.selectedAgentId = action.payload;
     },
-    clearError: (state) => {
-      state.error = null;
-    },
   },
   extraReducers: (builder) => {
     builder
-      // Connect agent cases
+      .addCase(fetchAgents.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAgents.fulfilled, (state, action: PayloadAction<AgentConnection[]>) => {
+        state.loading = false;
+        state.connections = action.payload.reduce((acc, agent) => {
+          acc[agent.id] = agent;
+          return acc;
+        }, {} as Record<string, AgentConnection>);
+      })
+      .addCase(fetchAgents.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch agents';
+      })
       .addCase(connectAgent.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(connectAgent.fulfilled, (state, action) => {
-        state.connections.push(action.payload);
+      .addCase(connectAgent.fulfilled, (state, action: PayloadAction<AgentConnection>) => {
         state.loading = false;
+        state.connections[action.payload.id] = action.payload;
       })
       .addCase(connectAgent.rejected, (state, action) => {
-        state.error = action.payload as string;
         state.loading = false;
+        state.error = action.error.message || 'Failed to connect agent';
       })
-      // Disconnect agent cases
       .addCase(disconnectAgent.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(disconnectAgent.fulfilled, (state, action) => {
-        state.connections = state.connections.filter(agent => agent.id !== action.payload);
-        if (state.selectedAgentId === action.payload) {
-          state.selectedAgentId = null;
-        }
+      .addCase(disconnectAgent.fulfilled, (state, action: PayloadAction<AgentConnection>) => {
         state.loading = false;
+        state.connections[action.payload.id] = action.payload;
       })
       .addCase(disconnectAgent.rejected, (state, action) => {
-        state.error = action.payload as string;
         state.loading = false;
-      })
-      // Refresh agents cases
-      .addCase(refreshAgents.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(refreshAgents.fulfilled, (state, action) => {
-        state.connections = action.payload;
-        state.loading = false;
-      })
-      .addCase(refreshAgents.rejected, (state, action) => {
-        state.error = action.payload as string;
-        state.loading = false;
+        state.error = action.error.message || 'Failed to disconnect agent';
       });
   },
 });
 
+// Actions
+export const { setSelectedAgent } = agentSlice.actions;
+
 // Selectors
-export const selectAgentState = (state: RootState) => state.agents;
+export const selectAgentConnections = (state: { agents: AgentState }) => Object.values(state.agents.connections);
+export const selectSelectedAgentId = (state: { agents: AgentState }) => state.agents.selectedAgentId;
+export const selectAgentLoading = (state: { agents: AgentState }) => state.agents.loading;
+export const selectAgentError = (state: { agents: AgentState }) => state.agents.error;
 
-export const selectAgentConnections = (state: RootState) => selectAgentState(state).connections;
-
-export const selectSelectedAgentId = (state: RootState) => selectAgentState(state).selectedAgentId;
-
-export const selectAgentLoading = (state: RootState) => selectAgentState(state).loading;
-
-export const selectAgentError = (state: RootState) => selectAgentState(state).error;
-
-export const { setSelectedAgent, clearError } = agentSlice.actions;
-export const agentReducer = agentSlice.reducer;
 export default agentSlice.reducer; 

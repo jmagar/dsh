@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+import {
+  Chat as ChatIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  Refresh as RefreshIcon,
+} from '@mui/icons-material';
 import {
   Box,
   List,
@@ -18,15 +23,13 @@ import {
   CircularProgress,
   Tooltip,
 } from '@mui/material';
-import {
-  Chat as ChatIcon,
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import { ChatSession } from '@/client/types/chat.types';
+import React, { useState } from 'react';
+
 import { getStyles } from './styles';
+
+import { ChatSession } from '@/client/types/chat.types';
+
 
 interface ChatBotProps {
   sessions: ChatSession[];

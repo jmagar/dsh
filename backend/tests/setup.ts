@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import path from 'path';
+
 import dotenv from 'dotenv';
 
 // Load environment variables from backend/.env

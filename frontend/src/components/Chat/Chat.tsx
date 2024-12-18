@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
 import { Box, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useChat } from '@/client/hooks/useChat';
+import React, { useState } from 'react';
+
+
 import { ChatBot } from './ChatBot';
 import { ChatDialog } from './ChatDialog';
 import { getStyles } from './styles';
+
+import { useChat } from '@/client/hooks/useChat';
 
 interface ChatProps {
   initialSessionId?: string;

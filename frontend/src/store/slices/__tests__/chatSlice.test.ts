@@ -1,5 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import type { Action, ThunkDispatch } from '@reduxjs/toolkit';
+
+import type { RootState } from '../../types';
 import {
   chatReducer,
   sendMessage,
@@ -7,7 +9,6 @@ import {
   setActiveSession,
   clearError,
 } from '../chatSlice';
-import type { RootState } from '../../types';
 
 describe('chatSlice', () => {
   let store: ReturnType<typeof configureStore> & {

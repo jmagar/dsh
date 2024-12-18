@@ -15,11 +15,37 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "bundler",
+    "module": "ESNext",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
-    "incremental": true
-  }
+    "incremental": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@dsh/shared": ["./shared/src"],
+      "@dsh/shared/*": ["./shared/src/*"]
+    }
+  },
+  "include": [
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.tsx",
+    "frontend/src/**/*.js",
+    "frontend/src/**/*.jsx",
+    "backend/src/**/*.ts",
+    "backend/src/**/*.tsx",
+    "backend/src/**/*.js",
+    "backend/src/**/*.jsx",
+    "shared/src/**/*.ts",
+    "shared/src/**/*.tsx",
+    "shared/src/**/*.js",
+    "shared/src/**/*.jsx"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "**/build"
+  ]
 }

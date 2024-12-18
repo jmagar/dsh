@@ -1,7 +1,9 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+
 import { ChatDialog } from '../ChatDialog';
+
 import { Message } from '@/client/types/chat.types';
 
 describe('ChatDialog', () => {

@@ -7,8 +7,8 @@ import type {
   AxiosError 
 } from 'axios';
 
-import { logger } from '../utils/logger';
 import type { AgentConnection, AgentMetrics, TestResult } from '../components/AgentManager/types';
+import { logger } from '../utils/logger';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 

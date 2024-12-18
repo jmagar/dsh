@@ -1,57 +1,72 @@
-import { useState, useEffect } from 'react';
-import type { AgentStatus } from '@dsh/shared/types/agent.types.js';
-import { fetchAgentStatus, updateAgentConfig } from '../api/agent.js';
+import { useCallback } from 'react';
 
-interface UseAgentResult {
-  status: AgentStatus | null;
-  error: Error | null;
-  isLoading: boolean;
-  updateConfig: (config: Partial<AgentStatus['config']>) => Promise<void>;
-  refetch: () => Promise<void>;
-}
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import {
+  connectAgent,
+  disconnectAgent,
+  selectAgent,
+  selectAgentConnections,
+  selectAgentError,
+  selectAgentLoading,
+  selectSelectedAgentId,
+} from '../store/slices/agentSlice';
+import type { RootState } from '../store/store';
 
-export function useAgent(agentId: string, pollInterval = 5000): UseAgentResult {
-  const [status, setStatus] = useState<AgentStatus | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+import { createLogMetadata } from '../utils/logger';
 
-  const fetchStatus = async () => {
+const logger = console; // TODO: Replace with actual logger implementation
+
+export const useAgent = () => {
+  const dispatch = useAppDispatch();
+  const connections = useAppSelector((state: RootState) => selectAgentConnections(state));
+  const selectedAgentId = useAppSelector((state: RootState) => selectSelectedAgentId(state));
+  const loading = useAppSelector((state: RootState) => selectAgentLoading(state));
+  const error = useAppSelector((state: RootState) => selectAgentError(state));
+
+  const handleConnect = useCallback(async (hostname: string) => {
     try {
-      setIsLoading(true);
-      const data = await fetchAgentStatus(agentId);
-      setStatus(data);
-      setError(null);
+      logger.info('Connecting to agent', createLogMetadata('agent-hook', undefined, {
+        message: `Attempting to connect to agent at ${hostname}`
+      }));
+      await dispatch(connectAgent(hostname)).unwrap();
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch agent status'));
-    } finally {
-      setIsLoading(false);
+      const error = err instanceof Error ? err : new Error('Unknown error during agent connection');
+      logger.error('Agent connection failed', createLogMetadata('agent-hook', error, {
+        message: `Failed to connect to agent at ${hostname}`
+      }));
+      throw error;
     }
-  };
+  }, [dispatch]);
 
-  const updateConfig = async (config: Partial<AgentStatus['config']>) => {
+  const handleDisconnect = useCallback(async (agentId: string) => {
     try {
-      setIsLoading(true);
-      await updateAgentConfig(agentId, config);
-      await fetchStatus();
+      logger.info('Disconnecting agent', createLogMetadata('agent-hook', undefined, {
+        message: `Disconnecting agent ${agentId}`
+      }));
+      await dispatch(disconnectAgent(agentId)).unwrap();
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to update agent config'));
-      throw err;
-    } finally {
-      setIsLoading(false);
+      const error = err instanceof Error ? err : new Error('Unknown error during agent disconnection');
+      logger.error('Agent disconnection failed', createLogMetadata('agent-hook', error, {
+        message: `Failed to disconnect agent ${agentId}`
+      }));
+      throw error;
     }
-  };
+  }, [dispatch]);
 
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, pollInterval);
-    return () => clearInterval(interval);
-  }, [agentId, pollInterval]);
+  const handleSelect = useCallback((agentId: string | null) => {
+    dispatch(selectAgent(agentId));
+    logger.info('Agent selected', createLogMetadata('agent-hook', undefined, {
+      message: `Selected agent ${agentId}`
+    }));
+  }, [dispatch]);
 
   return {
-    status,
+    connections,
+    selectedAgentId,
+    loading,
     error,
-    isLoading,
-    updateConfig,
-    refetch: fetchStatus
-  };
-} 
+    connect: handleConnect,
+    disconnect: handleDisconnect,
+    select: handleSelect,
+  } as const;
+}; 

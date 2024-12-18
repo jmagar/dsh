@@ -1,4 +1,7 @@
-import React from 'react';
+import {
+  Refresh as RefreshIcon,
+  Clear as ClearIcon,
+} from '@mui/icons-material';
 import {
   Box,
   Typography,
@@ -12,10 +15,8 @@ import {
   CircularProgress,
   Fade,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  Clear as ClearIcon,
-} from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
+import React from 'react';
 import {
   LineChart,
   Line,
@@ -25,9 +26,10 @@ import {
   Tooltip as ChartTooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { useTheme } from '@mui/material/styles';
-import { useDockerStats } from '@/client/hooks/useDockerStats';
+
 import { getStyles } from './styles';
+
+import { useDockerStats } from '@/client/hooks/useDockerStats';
 
 interface DockerStatsProps {
   hostIds: string[];

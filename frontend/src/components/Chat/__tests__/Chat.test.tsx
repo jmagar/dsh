@@ -1,7 +1,9 @@
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ThemeProvider, createTheme } from '@mui/material';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+
 import { Chat } from '../Chat';
+
 import { useChat } from '@/client/hooks/useChat';
 
 jest.mock('@/client/hooks/useChat');

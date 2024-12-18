@@ -1,5 +1,5 @@
-import type { User } from './core.types.js';
 import type { AuthConfig } from './auth.types.js';
+import type { User } from './core.types.js';
 import type { DatabaseConfig } from './database.types.js';
 
 export interface ServiceConfig {

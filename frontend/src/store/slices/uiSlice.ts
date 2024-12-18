@@ -1,38 +1,39 @@
-import { createSlice } from '@reduxjs/toolkit';
-import type { PayloadAction } from '@reduxjs/toolkit';
-import type { RootState } from '../types';
+import { type PayloadAction, createSlice } from '@reduxjs/toolkit';
 
-interface DialogState {
-  addAgent: boolean;
-}
+import type { UIState } from '../types';
+import type { RootState } from '../store';
 
-export interface UiState {
-  dialogs: DialogState;
-}
-
-const initialState: UiState = {
-  dialogs: {
-    addAgent: false,
-  },
+const initialState: UIState = {
+  dialogs: {},
 };
 
 const uiSlice = createSlice({
   name: 'ui',
   initialState,
   reducers: {
-    setAddAgentDialogOpen: (state, action: PayloadAction<boolean>) => {
-      state.dialogs.addAgent = action.payload;
+    openDialog: (state, action: PayloadAction<string>) => {
+      state.dialogs[action.payload] = true;
+    },
+    closeDialog: (state, action: PayloadAction<string>) => {
+      state.dialogs[action.payload] = false;
+    },
+    toggleDialog: (state, action: PayloadAction<string>) => {
+      state.dialogs[action.payload] = !state.dialogs[action.payload];
+    },
+    closeAllDialogs: (state) => {
+      Object.keys(state.dialogs).forEach(key => {
+        state.dialogs[key] = false;
+      });
     },
   },
 });
 
+export const { openDialog, closeDialog, toggleDialog, closeAllDialogs } = uiSlice.actions;
+export default uiSlice.reducer;
+
 // Selectors
-export const selectUiState = (state: RootState) => state.ui;
+export const selectDialogState = (dialogId: string) => 
+  (state: RootState): boolean => state.ui.dialogs[dialogId] ?? false;
 
-export const selectDialogs = (state: RootState) => selectUiState(state).dialogs;
-
-export const selectAddAgentDialogOpen = (state: RootState) => selectDialogs(state).addAgent;
-
-export const { setAddAgentDialogOpen } = uiSlice.actions;
-export const uiReducer = uiSlice.reducer;
-export default uiSlice.reducer; 
+export const selectAllDialogStates = (state: RootState): Record<string, boolean> => 
+  state.ui.dialogs; 
