@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-
+import type { RootState } from '../store/store';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   clearError,
@@ -9,8 +9,6 @@ import {
   selectMetricsForAgent,
   selectMetricsLoading,
 } from '../store/slices/metricsSlice';
-import type { RootState } from '../store/store';
-
 import { createLogMetadata } from '../utils/logger';
 
 const logger = console; // TODO: Replace with actual logger implementation

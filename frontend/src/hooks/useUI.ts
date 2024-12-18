@@ -1,5 +1,10 @@
+// External imports
 import { useCallback } from 'react';
 
+// Type imports
+import type { RootState } from '../store/store';
+
+// Internal imports
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   closeAllDialogs,
@@ -9,8 +14,6 @@ import {
   selectDialogState,
   toggleDialog,
 } from '../store/slices/uiSlice';
-import type { RootState } from '../store/store';
-
 import { createLogMetadata } from '../utils/logger';
 
 const logger = console; // TODO: Replace with actual logger implementation

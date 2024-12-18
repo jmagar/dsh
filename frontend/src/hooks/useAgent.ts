@@ -4,11 +4,11 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   connectAgent,
   disconnectAgent,
-  selectAgent,
-  selectAgentConnections,
-  selectAgentError,
-  selectAgentLoading,
-  selectSelectedAgentId,
+  setSelectedAgent,
+  selectAgents,
+  selectSelectedAgent,
+  selectAgentsLoading,
+  selectAgentsError,
 } from '../store/slices/agentSlice';
 import type { RootState } from '../store/store';
 
@@ -18,43 +18,37 @@ const logger = console; // TODO: Replace with actual logger implementation
 
 export const useAgent = () => {
   const dispatch = useAppDispatch();
-  const connections = useAppSelector((state: RootState) => selectAgentConnections(state));
-  const selectedAgentId = useAppSelector((state: RootState) => selectSelectedAgentId(state));
-  const loading = useAppSelector((state: RootState) => selectAgentLoading(state));
-  const error = useAppSelector((state: RootState) => selectAgentError(state));
+  const connections = useAppSelector(selectAgents);
+  const selectedAgent = useAppSelector(selectSelectedAgent);
+  const loading = useAppSelector(selectAgentsLoading);
+  const error = useAppSelector(selectAgentsError);
 
-  const handleConnect = useCallback(async (hostname: string) => {
+  const handleConnect = useCallback(async (agentId: string) => {
     try {
-      logger.info('Connecting to agent', createLogMetadata('agent-hook', undefined, {
-        message: `Attempting to connect to agent at ${hostname}`
+      await dispatch(connectAgent(agentId)).unwrap();
+      logger.info('Agent connected', createLogMetadata('agent-hook', undefined, {
+        message: `Connected to agent ${agentId}`
       }));
-      await dispatch(connectAgent(hostname)).unwrap();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error during agent connection');
-      logger.error('Agent connection failed', createLogMetadata('agent-hook', error, {
-        message: `Failed to connect to agent at ${hostname}`
-      }));
+    } catch (error) {
+      logger.error('Failed to connect agent', createLogMetadata('agent-hook', error));
       throw error;
     }
   }, [dispatch]);
 
   const handleDisconnect = useCallback(async (agentId: string) => {
     try {
-      logger.info('Disconnecting agent', createLogMetadata('agent-hook', undefined, {
-        message: `Disconnecting agent ${agentId}`
-      }));
       await dispatch(disconnectAgent(agentId)).unwrap();
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Unknown error during agent disconnection');
-      logger.error('Agent disconnection failed', createLogMetadata('agent-hook', error, {
-        message: `Failed to disconnect agent ${agentId}`
+      logger.info('Agent disconnected', createLogMetadata('agent-hook', undefined, {
+        message: `Disconnected from agent ${agentId}`
       }));
+    } catch (error) {
+      logger.error('Failed to disconnect agent', createLogMetadata('agent-hook', error));
       throw error;
     }
   }, [dispatch]);
 
   const handleSelect = useCallback((agentId: string | null) => {
-    dispatch(selectAgent(agentId));
+    dispatch(setSelectedAgent(agentId));
     logger.info('Agent selected', createLogMetadata('agent-hook', undefined, {
       message: `Selected agent ${agentId}`
     }));
@@ -62,7 +56,7 @@ export const useAgent = () => {
 
   return {
     connections,
-    selectedAgentId,
+    selectedAgent,
     loading,
     error,
     connect: handleConnect,

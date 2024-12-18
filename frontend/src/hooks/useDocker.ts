@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-
+import type { RootState } from '../store/store';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   fetchContainers,
@@ -11,8 +11,6 @@ import {
   startContainer,
   stopContainer,
 } from '../store/slices/dockerSlice';
-import type { RootState } from '../store/store';
-
 import { createLogMetadata } from '../utils/logger';
 
 const logger = console; // TODO: Replace with actual logger implementation
